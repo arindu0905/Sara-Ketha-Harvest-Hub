@@ -66,33 +66,6 @@ export const FarmerDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* ─── AI Crop Recommendation Banner Card ───────────────────────────────── */}
-      <div className="card bg-gradient-to-r from-emerald-900 via-primary-900 to-primary-950 text-white p-6 rounded-2xl shadow-card relative overflow-hidden border border-emerald-700/50">
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-10 pointer-events-none flex items-center justify-end pr-6">
-          <Sprout size={200} />
-        </div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-              <Bot size={14} /> {t('sara_ketha_advisory_engine')}
-            </div>
-            <h2 className="text-xl md:text-2xl font-bold tracking-tight">
-              {t('banner_ai_suggestions_title')}
-            </h2>
-            <p className="text-xs md:text-sm text-emerald-100/90 leading-relaxed">
-              {t('banner_ai_suggestions_desc')}
-            </p>
-          </div>
-          <button
-            onClick={() => setShowBotModal(true)}
-            className="px-5 py-3 bg-white text-emerald-950 font-bold rounded-xl text-sm shadow-lg hover:bg-emerald-50 transition-all shrink-0 flex items-center justify-center gap-2"
-          >
-            <Sparkles size={16} className="text-amber-500" />
-            {t('launch_sara_ketha_bot')}
-          </button>
-        </div>
-      </div>
-
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title={t('total_collections')} value={collectionsData?.data?.meta?.total ?? '—'} icon={<Package size={22} />} iconBg="bg-primary-100" iconColor="text-primary-600" loading={loadingColl} />
@@ -200,6 +173,32 @@ export const FarmerDashboard: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ─── Animated Corn Bot Floating Button (Bottom Right) ──────────────────── */}
+      <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
+        <button
+          onClick={() => setShowBotModal(true)}
+          className="group relative flex items-center gap-3 bg-gradient-to-r from-amber-400 via-emerald-600 to-emerald-700 hover:from-amber-300 hover:to-emerald-600 text-white font-extrabold px-4.5 py-3 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 border-2 border-white/90 animate-corn-pulse"
+          title={t('ask_sara_ketha_bot')}
+        >
+          {/* Animated corn icon badge container */}
+          <div className="relative w-10 h-10 bg-white/95 rounded-full flex items-center justify-center shadow-md animate-corn-float">
+            <span className="text-2xl select-none transform group-hover:rotate-12 transition-transform duration-300">🌽</span>
+            <Sparkles size={12} className="absolute -top-1 -right-1 text-amber-500 animate-kernel-sparkle" />
+          </div>
+
+          <div className="flex flex-col text-left pr-1.5">
+            <span className="text-xs font-black tracking-tight text-white leading-tight flex items-center gap-1">
+              Ask Sara Ketha Bot
+              <Sparkles size={12} className="text-amber-300 inline-block" />
+            </span>
+            <span className="text-[10px] font-semibold text-emerald-100/90">Java ML Crop Advisor</span>
+          </div>
+
+          {/* Glowing aura behind corn */}
+          <span className="absolute -inset-1 bg-amber-400/30 rounded-full blur-md group-hover:bg-amber-400/50 transition-all -z-10 animate-pulse" />
+        </button>
       </div>
 
       {/* ─── Crop AI Conversational Assistant Modal Component ─────────────────── */}

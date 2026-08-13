@@ -318,6 +318,48 @@
     100% { transform: translate(var(--seed-x, 20px), var(--seed-y, -30px)) scale(1); opacity: 0; }
   }
 
+  /* Corn float & glow animations */
+  @keyframes cornFloat {
+    0%, 100% {
+      transform: translateY(0) rotate(0deg) scale(1);
+    }
+    50% {
+      transform: translateY(-8px) rotate(4deg) scale(1.05);
+    }
+  }
+
+  @keyframes cornPulseRing {
+    0% {
+      transform: scale(0.98);
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+    }
+    70% {
+      transform: scale(1.04);
+      box-shadow: 0 0 0 16px rgba(245, 158, 11, 0);
+    }
+    100% {
+      transform: scale(0.98);
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
+  }
+
+  @keyframes kernelSparkle {
+    0%, 100% { opacity: 0.3; transform: scale(0.8) rotate(0deg); }
+    50% { opacity: 1; transform: scale(1.2) rotate(180deg); }
+  }
+
+  .animate-corn-float {
+    animation: cornFloat 3.2s ease-in-out infinite;
+  }
+
+  .animate-corn-pulse {
+    animation: cornPulseRing 2.4s infinite;
+  }
+
+  .animate-kernel-sparkle {
+    animation: kernelSparkle 2s ease-in-out infinite;
+  }
+
   /* Fade-in-up for scroll reveal */
   @keyframes fadeInUp {
     0%   { opacity: 0; transform: translateY(24px); }
