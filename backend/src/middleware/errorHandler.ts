@@ -40,6 +40,27 @@ export const errorHandler = (
     return;
   }
 
+  // Database errors that really mean "bad input" or "no such record" (instead of a 500)
+  const msg = err.message || '';
+  const isGeneric500 = !(err instanceof AppError) || err.statusCode === 500;
+  if (isGeneric500 && msg.includes('Cannot coerce the result to a single JSON object')) {
+    res.status(404).json({ success: false, message: 'Record not found' } satisfies ErrorResponse);
+    return;
+  }
+  const notNull = msg.match(/null value in column "(\w+)"/);
+  if (isGeneric500 && notNull) {
+    res.status(400).json({ success: false, message: `${notNull[1].replace(/_/g, ' ')} is required` } satisfies ErrorResponse);
+    return;
+  }
+  if (isGeneric500 && msg.includes('violates foreign key constraint')) {
+    res.status(404).json({ success: false, message: 'A referenced record does not exist' } satisfies ErrorResponse);
+    return;
+  }
+  if (isGeneric500 && msg.includes('invalid input syntax')) {
+    res.status(400).json({ success: false, message: 'Invalid value supplied' } satisfies ErrorResponse);
+    return;
+  }
+
   // Known application errors
   if (err instanceof AppError) {
     const response: ErrorResponse = {

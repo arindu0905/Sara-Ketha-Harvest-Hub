@@ -417,7 +417,11 @@ router.post('/centres', async (req: any, res, next) => {
 // PUT update collection centre
 router.put('/centres/:id', async (req: any, res, next) => {
   try {
-    const payload = { ...req.body, updated_by: req.user?.id };
+    const CENTRE_EDITABLE = ['name', 'code', 'address', 'district', 'phone', 'email', 'manager_id', 'latitude', 'longitude', 'is_active', 'capacity_kg'];
+    const payload: Record<string, unknown> = {
+      ...Object.fromEntries(Object.entries(req.body || {}).filter(([k, v]) => CENTRE_EDITABLE.includes(k) && v !== undefined)),
+      updated_at: new Date().toISOString(),
+    };
 
     let updateRes = await supabaseAdmin
       .from('collection_centres')

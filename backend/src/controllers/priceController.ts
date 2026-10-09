@@ -89,6 +89,10 @@ export const createPrice = async (req: AuthenticatedRequest, res: Response, next
   } catch (e) { next(e); }
 };
 
+const PRICE_EDITABLE = ['category_id', 'variety_id', 'centre_id', 'grade', 'purchase_price', 'selling_price', 'unit', 'effective_from', 'effective_until', 'status'];
+const pick = (body: Record<string, unknown> = {}, keys: string[]) =>
+  Object.fromEntries(Object.entries(body).filter(([k, v]) => keys.includes(k) && v !== undefined));
+
 /**
  * PUT /api/prices/:id/status
  */
@@ -97,7 +101,7 @@ export const updatePriceStatus = async (req: AuthenticatedRequest, res: Response
     const { status } = req.body;
     const { data, error } = await supabaseAdmin
       .from('crop_prices')
-      .update({ status, updated_by: req.user?.id })
+      .update({ status, updated_at: new Date().toISOString(), ...(status === 'active' ? { approved_by: req.user?.id } : {}) })
       .eq('id', req.params.id)
       .select().single();
     if (error) throw new AppError(error.message, 500);
@@ -112,7 +116,7 @@ export const updatePrice = async (req: AuthenticatedRequest, res: Response, next
   try {
     const { data, error } = await supabaseAdmin
       .from('crop_prices')
-      .update({ ...req.body, updated_by: req.user?.id })
+      .update({ ...pick(req.body, PRICE_EDITABLE), updated_at: new Date().toISOString() })
       .eq('id', req.params.id)
       .select(`*, crop_categories!category_id(id, name, name_sinhala, name_tamil)`).single();
     if (error) throw new AppError(error.message, 500);
