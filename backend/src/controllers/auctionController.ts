@@ -867,7 +867,8 @@ export const getMyProduceAuctions = async (req: AuthenticatedRequest, res: Respo
         id, lot_number, lot_status, quality_grade, lot_quantity, unit,
         winning_price_per_unit, total_winning_amount,
         auctions!auction_id(id, auction_number, title, status, start_at, end_at),
-        auction_settlements(status, net_amount_lkr, payment_date)
+        auction_settlements(status, net_amount_lkr, payment_date),
+        inventory_batches!inner(farmer_id)
       `)
       .eq('inventory_batches.farmer_id', farmerId)
       .order('created_at', { ascending: false });

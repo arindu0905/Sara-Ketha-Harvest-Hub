@@ -34,7 +34,7 @@ router.get('/', async (req: any, res, next) => {
 
     let query = supabaseAdmin
       .from('complaints')
-      .select(`*, profiles!submitted_by(full_name, email, role), profiles!assigned_to(full_name)`, { count: 'exact' });
+      .select(`*, submitter:profiles!submitted_by(full_name, email, role), assignee:profiles!assigned_to(full_name)`, { count: 'exact' });
 
     // Farmers/buyers see only their own
     if (['farmer', 'buyer'].includes(req.user.role)) {

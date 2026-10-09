@@ -28,6 +28,9 @@ export const getMe = async (
     if (!userId) {
       throw new AppError('Unauthorized', 401);
     }
+    if (req.user?.role !== 'farmer') {
+      throw new AppError('Only farmer accounts have a farmer profile', 403);
+    }
 
     // Try fetching existing farmer record by profile_id
     let { data: farmer, error } = await supabaseAdmin
