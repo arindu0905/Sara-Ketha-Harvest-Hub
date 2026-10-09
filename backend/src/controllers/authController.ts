@@ -193,6 +193,12 @@ export const login = async (
     });
 
     if (error) {
+      // Wrong credentials are a 400 from Supabase Auth; anything else (bad API key, wrong project URL, network)
+      // is a server configuration problem and must not be reported as a wrong password.
+      if (error.status && error.status >= 500 || /api key|jwt|fetch failed|invalid url/i.test(error.message)) {
+        logger.error(`Supabase auth is misconfigured: ${error.message}`);
+        throw new AppError('Sign-in service is not configured correctly. Please contact the administrator.', 503);
+      }
       throw new AppError('Invalid email or password', 401);
     }
 
