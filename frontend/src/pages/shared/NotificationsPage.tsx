@@ -3,9 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationsApi } from '../../services/api';
 import { Bell, Check, CheckCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { notificationLink } from '../../utils/notificationLink';
 
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const { data: notifRes, isLoading } = useQuery({
     queryKey: ['user-notifications'],
@@ -52,8 +57,11 @@ export const NotificationsPage: React.FC = () => {
         <div className="card"><div className="empty-state"><Bell className="w-8 h-8 text-surface-300 mb-2" /><p className="text-surface-400 text-sm">No notifications</p></div></div>
       ) : (
         <div className="card overflow-hidden divide-y divide-surface-50">
-          {notifications.map((n: any) => (
-            <div key={n.id} className={`p-4 flex items-start justify-between gap-4 transition-colors ${n.is_read ? 'bg-white' : 'bg-primary-50/30'}`}>
+          {notifications.map((n: any) => {
+            const link = notificationLink(n, user?.role);
+            const open = () => { if (!link) return; if (!n.is_read) markReadMutation.mutate(n.id); navigate(link); };
+            return (
+            <div key={n.id} onClick={open} className={`p-4 flex items-start justify-between gap-4 transition-colors ${n.is_read ? 'bg-white' : 'bg-primary-50/30'} ${link ? 'cursor-pointer hover:bg-surface-50' : ''}`}>
               <div className="flex items-start gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${n.is_read ? 'bg-surface-100 text-surface-500' : 'bg-primary-100 text-primary-600'}`}>
                   <Bell size={18} />
@@ -61,16 +69,17 @@ export const NotificationsPage: React.FC = () => {
                 <div>
                   <p className={`text-sm ${n.is_read ? 'text-surface-700' : 'font-semibold text-surface-900'}`}>{n.title || n.message}</p>
                   {n.title && n.message && <p className="text-xs text-surface-500 mt-0.5">{n.message}</p>}
-                  <p className="text-xs text-surface-400 mt-1">{new Date(n.created_at).toLocaleString('en-LK')}</p>
+                  <p className="text-xs text-surface-400 mt-1">{new Date(n.created_at).toLocaleString('en-LK')}{link ? ' · click to open' : ''}</p>
                 </div>
               </div>
               {!n.is_read && (
-                <button onClick={() => markReadMutation.mutate(n.id)} className="btn-ghost p-1 text-surface-400 hover:text-surface-700" title="Mark as read">
+                <button onClick={(e) => { e.stopPropagation(); markReadMutation.mutate(n.id); }} className="btn-ghost p-1 text-surface-400 hover:text-surface-700" title="Mark as read">
                   <Check size={16} />
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

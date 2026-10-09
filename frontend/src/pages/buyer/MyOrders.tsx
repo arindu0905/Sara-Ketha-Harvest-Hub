@@ -6,6 +6,7 @@ import { ordersApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { ShoppingCart, ChevronRight, Search, RefreshCw, Filter, Package, CheckCircle2, Clock, XCircle, ArrowRight } from 'lucide-react';
 import { formatCategoryName } from '../../utils/categoryUtils';
+import { ExportCsvButton } from '../../components/ui/ExportCsvButton';
 
 export const MyOrders: React.FC = () => {
   const { user } = useAuth();
@@ -72,6 +73,8 @@ export const MyOrders: React.FC = () => {
           <p className="page-subtitle">Track, view, and manage all agricultural purchase orders in real-time</p>
         </div>
         <div className="flex items-center gap-3">
+          <ExportCsvButton filename="orders" headers={['Order No','Status','Requested Date','Total (LKR)','Created']}
+            rows={filteredOrders.map((o: any) => [o.order_no, o.status, o.requested_date, o.total_amount_lkr, new Date(o.created_at).toLocaleDateString('en-LK')])} />
           <button
             onClick={() => refetch()}
             disabled={isFetching}

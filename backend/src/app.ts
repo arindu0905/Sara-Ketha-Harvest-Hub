@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import { syncAuctionStatuses } from './services/auctionScheduler';
 import morgan from 'morgan';
 import compression from 'compression';
 
@@ -111,6 +112,20 @@ app.get('/health', (_req, res) => {
 });
 
 // ─── API Routes ────────────────────────────────────────────────────────────
+// Scheduled trigger for hosts without a long-running process (e.g. Vercel Cron or any external pinger).
+// Call GET /api/cron/auctions with "Authorization: Bearer <CRON_SECRET>" every minute to open/close auctions on time.
+app.get('/api/cron/auctions', async (req, res, next) => {
+  try {
+    const secret = process.env.CRON_SECRET;
+    if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+    await syncAuctionStatuses();
+    res.json({ success: true, ranAt: new Date().toISOString() });
+  } catch (e) { next(e); }
+});
+
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/farmers', farmerRoutes);
 app.use('/api/crops', cropRoutes);

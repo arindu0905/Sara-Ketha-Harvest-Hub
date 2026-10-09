@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { farmersApi } from '../../services/api';
 import { Search, Users, ChevronRight, Filter } from 'lucide-react';
+import { ExportCsvButton } from '../../components/ui/ExportCsvButton';
 
 export const FarmerDirectory: React.FC = () => {
   const [search, setSearch] = useState('');
@@ -39,7 +40,11 @@ export const FarmerDirectory: React.FC = () => {
           <h1 className="page-title">Farmer Directory</h1>
           <p className="page-subtitle">{total} farmers registered</p>
         </div>
-        <Link to="/officer/farmers/register" className="btn-primary btn-sm">+ Register Farmer</Link>
+        <div className="flex items-center gap-2">
+          <ExportCsvButton filename="farmers" headers={['Farmer Code','Name','Phone','District','Verification']}
+            rows={farmers.map((f: any) => [f.farmer_code, f.full_name, f.phone, f.district, f.verification_status])} />
+          <Link to="/officer/farmers/register" className="btn-primary btn-sm">+ Register Farmer</Link>
+        </div>
       </div>
 
       {/* Filters */}

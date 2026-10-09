@@ -57,6 +57,7 @@ const getNavItems = (role: Role): NavItem[] => {
         { key: 'quality_analytics', label: 'Quality Analytics', path: '/inspector/analytics', icon: <BarChart3 size={18} /> },
         { key: 'start_live_auction', label: 'Start Live Auction', path: '/inspector/auctions/create-live', icon: <Gavel size={18} /> },
         { key: 'live_auctions', label: 'View Live Auctions', path: '/inspector/auctions/live', icon: <TrendingUp size={18} /> },
+        { key: 'complaints', label: 'Complaints', path: '/inspector/complaints', icon: <MessageSquare size={18} /> },
       ];
     case 'inventory_manager':
       return [
@@ -69,6 +70,7 @@ const getNavItems = (role: Role): NavItem[] => {
         { key: 'auctions', label: 'Auction Dashboard', path: '/inventory/auction/dashboard', icon: <Gavel size={18} /> },
         { key: 'live_auction_monitor', label: 'Live Auction Monitor', path: '/inventory/auction/monitor', icon: <TrendingUp size={18} /> },
         { key: 'auction_reports', label: 'Auction Reports', path: '/inventory/auction/reports', icon: <BarChart3 size={18} /> },
+        { key: 'complaints', label: 'Complaints', path: '/inventory/complaints', icon: <MessageSquare size={18} /> },
       ];
     case 'buyer':
       return [
@@ -89,6 +91,7 @@ const getNavItems = (role: Role): NavItem[] => {
         { key: 'outstanding_payments', label: 'Outstanding Payments', path: '/finance/outstanding', icon: <DollarSign size={18} /> },
         { key: 'reports', label: 'Reports', path: '/finance/reports', icon: <BarChart3 size={18} /> },
         { key: 'management_reports', label: 'Management Reports', path: '/finance/management-reports', icon: <TrendingUp size={18} /> },
+        { key: 'complaints', label: 'Complaints', path: '/finance/complaints', icon: <MessageSquare size={18} /> },
       ];
     case 'transport_coordinator':
       return [
@@ -96,6 +99,7 @@ const getNavItems = (role: Role): NavItem[] => {
         { key: 'schedule_delivery', label: 'Delivery Schedule', path: '/transport/schedule', icon: <Calendar size={18} /> },
         { key: 'active_deliveries', label: 'Active Shipments', path: '/transport/active', icon: <Truck size={18} /> },
         { key: 'fleet_vehicles', label: 'Fleet & Drivers', path: '/transport/vehicles', icon: <Warehouse size={18} /> },
+        { key: 'complaints', label: 'Complaints', path: '/transport/complaints', icon: <MessageSquare size={18} /> },
       ];
     case 'manager':
       return [

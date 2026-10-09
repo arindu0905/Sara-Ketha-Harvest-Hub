@@ -210,6 +210,7 @@ function App() {
               <Route path="auctions/create-live" element={<CreateLiveAuction />} />
               <Route path="auctions/live" element={<LiveAuctionView role="buyer" basePath="/inspector" />} />
               <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="complaints" element={<ComplaintManagement />} />
             </Route>
 
             {/* ─── Inventory Routes ────────────────────────────── */}
@@ -241,6 +242,7 @@ function App() {
               <Route path="auction/award" element={<AuctionDashboardPage />} />
               <Route path="auction/:id/award" element={<AuctionAwardPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="complaints" element={<ComplaintManagement />} />
             </Route>
 
             {/* ─── Buyer Routes ────────────────────────────────── */}
@@ -291,6 +293,7 @@ function App() {
               <Route path="management-reports" element={<ManagementReports />} />
               <Route path="outstanding" element={<OutstandingPayments />} />
               <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="complaints" element={<ComplaintManagement />} />
             </Route>
 
             {/* ─── Transport Routes ────────────────────────────── */}
@@ -305,6 +308,7 @@ function App() {
               <Route path="active" element={<ActiveDeliveries />} />
               <Route path="vehicles" element={<VehiclesPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="complaints" element={<ComplaintManagement />} />
             </Route>
 
             {/* ─── Admin Routes ────────────────────────────────── */}

@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { apiErrorMessage } from '../../utils/apiError';
 import { printCollectionReceipt } from '../../components/receipts/CollectionReceiptCard';
 import { Package, Scale, ChevronRight } from 'lucide-react';
+import { ExportCsvButton } from '../../components/ui/ExportCsvButton';
 
 export const CollectionHistory: React.FC = () => {
   const [page, setPage] = useState(1);
@@ -35,7 +36,11 @@ export const CollectionHistory: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
         <div><h1 className="page-title">Collection History</h1><p className="page-subtitle">{total} total collections</p></div>
-        <Link to="/officer/collections/register" className="btn-primary btn-sm"><Package size={14} /> New Collection</Link>
+        <div className="flex items-center gap-2">
+          <ExportCsvButton filename="collections" headers={['Collection No','Farmer','Farmer Code','Crop','Net Weight (kg)','Status','Date']}
+            rows={collections.map((c: any) => [c.collection_no, c.farmers?.full_name, c.farmers?.farmer_code, c.crop_categories?.name, c.net_weight_kg, c.status, new Date(c.created_at).toLocaleDateString('en-LK')])} />
+          <Link to="/officer/collections/register" className="btn-primary btn-sm"><Package size={14} /> New Collection</Link>
+        </div>
       </div>
 
       <div className="card p-4">

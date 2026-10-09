@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MessageSquare, X, Send, CheckCircle } from 'lucide-react';
 import { complaintsApi } from '../../services/api';
+import { ExportCsvButton } from '../../components/ui/ExportCsvButton';
 
 const STATUSES = ['submitted', 'under_review', 'assigned', 'in_progress', 'resolved', 'rejected', 'closed'];
 const label = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -63,10 +64,14 @@ export const ComplaintManagement: React.FC = () => {
           <h1 className="page-title">Complaint Management</h1>
           <p className="page-subtitle">Review, respond to and resolve complaints submitted by farmers</p>
         </div>
+        <div className="flex items-center gap-2">
+        <ExportCsvButton filename="complaints" headers={['Complaint No','Subject','Category','Status','Submitted by','Handled by','Resolution','Created']}
+          rows={complaints.map((c) => [c.complaint_no, c.subject, label(c.category || ''), label(c.status), c.submitter?.full_name, c.assignee?.full_name, c.resolution, new Date(c.created_at).toLocaleDateString('en-LK')])} />
         <select className="form-input w-48" value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="">All statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
         </select>
+        </div>
       </div>
 
       {list.isLoading ? (
