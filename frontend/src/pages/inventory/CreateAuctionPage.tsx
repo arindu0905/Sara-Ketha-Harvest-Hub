@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useCreateAuction } from '../../hooks/useAuction';
 import { getSriLankanSeasons, SL_DISTRICTS, formatLKR } from '../../utils/lkrFormat';
 import { formatCategoryName } from '../../utils/categoryUtils';
-import { adminApi } from '../../services/api';
+import { centresApi } from '../../services/api';
+import { auctionApi } from '../../services/auctionApi';
+import toast from 'react-hot-toast';
 import { inventoryApi } from '../../services/api';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, ChevronLeft, Check, Plus, Trash2, AlertCircle } from 'lucide-react';
@@ -25,11 +28,27 @@ const AuctionConfigSchema = z.object({
   payment_deadline_hours: z.number().int().positive().default(48),
   auto_extension_enabled: z.boolean().default(true),
   extension_minutes:      z.number().int().positive().default(5),
-  reserve_price:          z.number().positive().optional(),
+  reserve_price:          z.preprocess((val) => Number.isNaN(val) ? undefined : val, z.number().positive().optional()),
+}).refine((d) => new Date(d.start_at).getTime() >= Date.now() - 2 * 60 * 1000, {
+  message: 'Start date and time cannot be in the past',
+  path: ['start_at'],
+}).refine((d) => new Date(d.end_at).getTime() > Date.now(), {
+  message: 'End date and time cannot be in the past',
+  path: ['end_at'],
 }).refine((d) => new Date(d.start_at) < new Date(d.end_at), {
   message: 'Start time must be before end time',
   path: ['start_at'],
+}).refine((d) => !d.reserve_price || Number(d.reserve_price) >= d.starting_price, {
+  message: 'Reserve price must be ≥ starting price',
+  path: ['reserve_price'],
 });
+
+/** Current local date-time in the format <input type="datetime-local"> expects (used as its minimum). */
+const nowLocal = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+};
 
 const steps = [
   { label: 'Configure Auction', icon: '⚙️' },
@@ -57,8 +76,9 @@ interface DraftLot {
 
 function StepConfigure({ onNext }: { onNext: (d: AuctionConfig) => void }) {
   const { data: centres = [] } = useQuery({
-    queryKey: ['admin-centres'],
-    queryFn:  () => adminApi.getCentres().then((r) => r.data.data ?? []),
+    queryKey: ['centres-for-auction'],
+    // /centres is open to every signed-in staff role (the /admin version is administrator-only)
+    queryFn:  () => centresApi.getAll().then((r) => (r.data.data ?? []).filter((c: any) => c.is_active !== false)),
   });
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<AuctionConfig>({
@@ -100,12 +120,12 @@ function StepConfigure({ onNext }: { onNext: (d: AuctionConfig) => void }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time *</label>
-          <input type="datetime-local" {...register('start_at')} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500" />
+          <input type="datetime-local" min={nowLocal()} {...register('start_at')} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500" />
           {errors.start_at && <p className="text-xs text-red-600 mt-1">{errors.start_at.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">End Date & Time *</label>
-          <input type="datetime-local" {...register('end_at')} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500" />
+          <input type="datetime-local" min={watch('start_at') || nowLocal()} {...register('end_at')} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500" />
           {errors.end_at && <p className="text-xs text-red-600 mt-1">{errors.end_at.message}</p>}
         </div>
       </div>
@@ -119,6 +139,7 @@ function StepConfigure({ onNext }: { onNext: (d: AuctionConfig) => void }) {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Reserve Price (optional)</label>
           <input type="number" step="0.01" {...register('reserve_price', { valueAsNumber: true })} placeholder="Leave blank if no reserve" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500" />
+          {errors.reserve_price && <p className="text-xs text-red-600 mt-1">{errors.reserve_price.message}</p>}
         </div>
       </div>
 
@@ -164,7 +185,7 @@ function StepAddLots({ onNext, onBack }: { onNext: (lots: DraftLot[]) => void; o
 
   const { data: inventory = [] } = useQuery({
     queryKey: ['inventory-available'],
-    queryFn:  () => inventoryApi.getAll({ status: 'available' }).then((r) => r.data.data ?? []),
+    queryFn:  () => inventoryApi.getAll({ status: 'available', available_for_auction: 'true', limit: '200' }).then((r) => r.data.data ?? []),
   });
 
   const addLot = () => {
@@ -172,11 +193,12 @@ function StepAddLots({ onNext, onBack }: { onNext: (lots: DraftLot[]) => void; o
       return alert('Fill in all required lot fields.');
     }
     const batch = inventory.find((b: any) => b.id === form.inventory_batch_id);
+    if (!(batch?.category_id ?? batch?.crop_categories?.id)) return alert('This batch has no crop category and cannot be auctioned.');
     setLots([...lots, {
       ...form as DraftLot,
       tempId:     crypto.randomUUID(),
       batchLabel: batch ? `${batch.batch_no} – ${batch.crop_categories?.name ?? ''}` : form.inventory_batch_id,
-      crop_category_id: batch?.category_id ?? '',
+      crop_category_id: batch?.category_id ?? batch?.crop_categories?.id ?? '',
     }]);
     setForm({ unit: 'kg', quality_grade: 'grade_a' });
     setShowForm(false);
@@ -344,7 +366,7 @@ function StepReview({
 
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
         <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-amber-800">The auction will be saved as a <strong>draft</strong> and requires administrator approval before it can be scheduled and opened for bidding.</p>
+        <p className="text-xs text-amber-800">The auction will be saved as a <strong>draft</strong>. You can then approve, publish and open it yourself from its page; it also opens automatically at its start time.</p>
       </div>
 
       <div className="flex gap-3">
@@ -363,6 +385,7 @@ function StepReview({
 
 export function CreateAuctionPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep]         = useState(0);
   const [config, setConfig]     = useState<AuctionConfig | null>(null);
   const [lots, setLots]         = useState<DraftLot[]>([]);
@@ -370,9 +393,39 @@ export function CreateAuctionPage() {
 
   const handleCreate = async () => {
     if (!config) return;
-    const auction = await createAuction(config);
-    // Navigate to the new auction's management page
-    navigate(`/inventory/auction/${auction.id}`);
+    // Convert datetime-local strings (e.g. "2026-10-03T13:27") to full ISO 8601
+    // that the backend Zod schema (z.string().datetime()) accepts.
+    const payload = {
+      ...config,
+      start_at: new Date(config.start_at).toISOString(),
+      end_at:   new Date(config.end_at).toISOString(),
+    };
+    const auction = await createAuction(payload as any);
+
+    // Save the lots chosen in step 2 – previously they were only shown in the review and never sent.
+    let failed = 0;
+    for (const lot of lots) {
+      try {
+        await auctionApi.createLot(auction.id, {
+          inventory_batch_id:      lot.inventory_batch_id,
+          crop_category_id:        lot.crop_category_id,
+          quality_grade:           lot.quality_grade as any,
+          lot_quantity:            Number(lot.lot_quantity),
+          unit:                    (lot.unit || 'kg') as any,
+          starting_price_per_unit: Number(lot.starting_price_per_unit),
+          origin_district:         lot.origin_district || undefined,
+          harvest_season:          lot.harvest_season || undefined,
+          traceability_notes:      lot.traceability_notes || undefined,
+        });
+      } catch (err: any) {
+        failed++;
+        toast.error(`Lot "${lot.batchLabel ?? lot.inventory_batch_id}" was not added: ${err?.response?.data?.message ?? 'unknown error'}${err?.response?.data?.errors?.[0] ? ` (${err.response.data.errors[0].field}: ${err.response.data.errors[0].message})` : ''}`);
+      }
+    }
+    if (lots.length > 0 && failed === 0) toast.success(`${lots.length} lot${lots.length > 1 ? 's' : ''} added to the auction`);
+    // Navigate to the new auction's management page based on role
+    const basePath = user?.role === 'administrator' ? '/admin' : '/inventory';
+    navigate(`${basePath}/auction/${auction.id}`);
   };
 
   return (

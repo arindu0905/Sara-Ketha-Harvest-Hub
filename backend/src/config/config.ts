@@ -33,6 +33,14 @@ export const config = {
     authMaxRequests: 100,
   },
 
+  email: {
+    host: process.env.SMTP_HOST || '',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.EMAIL_FROM || 'Saara Ketha Harvest Hub <no-reply@harvesthub.lk>',
+  },
+
   logging: {
     level: process.env.LOG_LEVEL || 'info',
   },

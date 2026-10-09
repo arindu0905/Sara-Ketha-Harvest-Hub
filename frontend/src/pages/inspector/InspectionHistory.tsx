@@ -1,4 +1,7 @@
 import React from 'react';
+import { DoneBy } from '../../components/ui/DoneBy';
+import { one } from '../../utils/relations';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { collectionsApi } from '../../services/api';
 import { CheckSquare } from 'lucide-react';
@@ -9,7 +12,7 @@ export const InspectionHistory: React.FC = () => {
     queryFn: () => collectionsApi.getAll({ limit: '50' }),
   });
 
-  const inspected = (collectionsRes?.data?.data || []).filter((c: any) => c.quality_inspections?.length > 0);
+  const inspected = (collectionsRes?.data?.data || []).filter((c: any) => !!one(c.quality_inspections));
 
   const gradeBadge = (g: string) => {
     switch (g) { case 'grade_a': return <span className="badge-success">Grade A</span>; case 'grade_b': return <span className="badge-info">Grade B</span>; case 'grade_c': return <span className="badge-warning">Grade C</span>; case 'rejected': return <span className="badge-danger">Rejected</span>; default: return <span className="badge-neutral">{g}</span>; }
@@ -22,9 +25,26 @@ export const InspectionHistory: React.FC = () => {
         <div className="card"><div className="empty-state"><CheckSquare className="w-8 h-8 text-surface-300 mb-2" /><p className="text-surface-400 text-sm">No inspection history</p></div></div>
       ) : (
         <div className="card overflow-hidden"><div className="table-container"><table className="table">
-          <thead><tr><th>Collection</th><th>Farmer</th><th>Crop</th><th>Grade</th><th>Accepted</th><th>Rejected</th><th>Date</th></tr></thead>
-          <tbody>{inspected.map((c: any) => { const insp = c.quality_inspections[0]; return (
-            <tr key={c.id}><td className="font-semibold">{c.collection_no}</td><td>{c.farmers?.full_name}</td><td>{c.crop_categories?.name}</td><td>{gradeBadge(insp.grade)}</td><td className="text-primary-700 font-medium">{insp.accepted_qty_kg} kg</td><td className="text-red-600">{insp.rejected_qty_kg > 0 ? `${insp.rejected_qty_kg} kg` : '—'}</td><td className="text-xs text-surface-500">{new Date(c.created_at).toLocaleDateString('en-LK')}</td></tr>
+          <thead><tr><th>Collection</th><th>Farmer</th><th>Crop</th><th>Grade</th><th>Accepted</th><th>Rejected</th><th>Batch No</th><th>Receipt</th><th>Inspected by</th><th>Date</th><th>Action</th></tr></thead>
+          <tbody>{inspected.map((c: any) => { const insp: any = one(c.quality_inspections); return (
+            <tr key={c.id}>
+              <td className="font-semibold">{c.collection_no}</td>
+              <td>{c.farmers?.full_name}</td>
+              <td>{c.crop_categories?.name}</td>
+              <td>{gradeBadge(insp.grade)}</td>
+              <td className="text-primary-700 font-medium">{insp.accepted_qty_kg} kg</td>
+              <td className="text-red-600">{insp.rejected_qty_kg > 0 ? `${insp.rejected_qty_kg} kg` : '—'}</td>
+              <td className="font-mono text-xs">{([] as any[]).concat(c.inventory_batches ?? [])[0]?.batch_no ?? '—'}</td>
+              <td className="font-mono text-xs">{([] as any[]).concat(c.collection_receipts ?? [])[0]?.receipt_no ?? '—'}</td>
+              <td><DoneBy items={[[null, insp?.inspector, insp?.approved_at]]} /></td>
+              <td className="text-xs text-surface-500">{new Date(c.created_at).toLocaleDateString('en-LK')}</td>
+              <td className="space-x-2 whitespace-nowrap">
+                <Link to={`/inspector/inspection-report/${c.id}`} className="btn-ghost btn-sm text-primary-700">Report</Link>
+                {insp.grade !== 'rejected' && insp.accepted_qty_kg > 0 && (
+                  <a href={`/inspector/auctions/create-live?collection_id=${c.id}`} className="btn-secondary btn-sm whitespace-nowrap">Add to Live Auction</a>
+                )}
+              </td>
+            </tr>
           ); })}</tbody>
         </table></div></div>
       )}

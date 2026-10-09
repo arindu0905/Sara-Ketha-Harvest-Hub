@@ -4,6 +4,8 @@ import { supabaseAdmin } from '../config/supabase';
 import { AppError } from '../utils/AppError';
 import { sendSuccess } from '../utils/response';
 import crypto from 'crypto';
+import { notifyUser } from '../services/notify';
+import { syncAuctionStatuses } from '../services/auctionScheduler';
 import {
   CreateAuctionSchema,
   UpdateAuctionSchema,
@@ -75,6 +77,7 @@ async function getFarmerIdForUser(userId: string): Promise<string | null> {
  */
 export const listAuctions = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    await syncAuctionStatuses(10_000);
     const query = AuctionListQuerySchema.parse(req.query);
     const isStaff = req.user && ['inventory_manager', 'administrator', 'finance_officer'].includes(req.user.role);
 
@@ -84,11 +87,13 @@ export const listAuctions = async (req: AuthenticatedRequest, res: Response, nex
       .order('start_at', { ascending: false })
       .range((query.page - 1) * query.limit, query.page * query.limit - 1);
 
-    // Non-staff: exclude drafts
-    if (!isStaff) {
+    // Farmers only see auctions that are live right now; other non-staff never see drafts
+    if (req.user?.role === 'farmer') {
+      dbQuery = dbQuery.eq('status', 'open');
+    } else if (!isStaff) {
       dbQuery = dbQuery.neq('status', 'draft');
     }
-    if (query.status)    dbQuery = dbQuery.eq('status', query.status);
+    if (query.status && req.user?.role !== 'farmer') dbQuery = dbQuery.eq('status', query.status);
     if (query.centre_id) dbQuery = dbQuery.eq('collection_centre_id', query.centre_id);
 
     const { data, error, count } = await dbQuery;
@@ -107,6 +112,7 @@ export const listAuctions = async (req: AuthenticatedRequest, res: Response, nex
  */
 export const getAuction = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    await syncAuctionStatuses(10_000);
     const { data: auction, error } = await supabaseAdmin
       .from('auctions')
       .select(`
@@ -416,16 +422,24 @@ export const createLot = async (req: AuthenticatedRequest, res: Response, next: 
     if (!req.user) throw new AppError('Authentication required', 401);
     const body = CreateLotSchema.parse({ ...req.body, auction_id: req.params.id });
 
+    const { data: parent } = await supabaseAdmin.from('auctions').select('status').eq('id', req.params.id).maybeSingle();
+    if (!parent) throw new AppError('Auction not found', 404);
+    if (!['draft', 'scheduled', 'paused'].includes(parent.status)) {
+      throw new AppError(`Lots cannot be added while the auction is ${parent.status}. Pause it first.`, 409);
+    }
+
     // Assign lot number
     const { count } = await supabaseAdmin
       .from('auction_lots')
       .select('*', { count: 'exact', head: true })
       .eq('auction_id', req.params.id);
 
+    const { images, ...lotData } = body;
+
     const { data, error } = await supabaseAdmin
       .from('auction_lots')
       .insert({
-        ...body,
+        ...lotData,
         lot_number:          (count ?? 0) + 1,
         current_price_per_unit: body.starting_price_per_unit,
         lot_status:          'draft',
@@ -435,6 +449,17 @@ export const createLot = async (req: AuthenticatedRequest, res: Response, next: 
       .single();
 
     if (error) throw new AppError(error.message, 500);
+
+    if (images && images.length > 0) {
+      const imagePayload = images.map((img: any, idx: number) => ({
+        auction_lot_id: data.id,
+        storage_path: img.storage_path,
+        file_name: img.file_name,
+        sort_order: img.sort_order ?? idx,
+      }));
+      await supabaseAdmin.from('auction_lot_images').insert(imagePayload);
+    }
+
     await auditLog(req.user.id, 'CREATE_LOT', 'auction_lot', data.id);
     sendSuccess(res, { data, statusCode: 201, message: 'Lot added to auction' });
   } catch (e) { next(e); }
@@ -459,6 +484,44 @@ export const updateLot = async (req: AuthenticatedRequest, res: Response, next: 
   } catch (e) { next(e); }
 };
 
+export const updateBasePrice = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) throw new AppError('Authentication required', 401);
+    
+    const { starting_price_per_unit } = req.body;
+    if (typeof starting_price_per_unit !== 'number' || starting_price_per_unit <= 0) {
+      throw new AppError('Valid starting price is required', 400);
+    }
+
+    const { data: lot } = await supabaseAdmin.from('auction_lots')
+      .select('id, lot_status, inventory_batches!inner(farmer_id, farmers(profile_id))')
+      .eq('id', req.params.lotId)
+      .single();
+
+    if (!lot) throw new AppError('Lot not found', 404);
+    
+    // Check farmer ownership
+    const batch = Array.isArray(lot.inventory_batches) ? lot.inventory_batches[0] : lot.inventory_batches;
+    const farmerRel: any = Array.isArray((batch as any)?.farmers) ? (batch as any).farmers[0] : (batch as any)?.farmers;
+    if (farmerRel?.profile_id !== req.user.id) {
+      throw new AppError('You do not have permission to update this lot', 403);
+    }
+
+    // Usually you can only update if it hasn't started getting bids, but we'll allow it if status is draft or published or open but no bids
+    // For simplicity, just update the price
+    const { data, error } = await supabaseAdmin.from('auction_lots')
+      .update({ starting_price_per_unit, current_price_per_unit: starting_price_per_unit })
+      .eq('id', req.params.lotId)
+      .select()
+      .single();
+
+    if (error) throw new AppError(error.message, 500);
+
+    await auditLog(req.user.id, 'UPDATE_BASE_PRICE', 'auction_lot', req.params.lotId, { starting_price_per_unit });
+    sendSuccess(res, { data, message: 'Base price updated successfully' });
+  } catch (e) { next(e); }
+};
+
 export const deleteLot = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     if (!req.user) throw new AppError('Authentication required', 401);
@@ -470,9 +533,11 @@ export const deleteLot = async (req: AuthenticatedRequest, res: Response, next: 
       .eq('id', req.params.lotId)
       .single();
 
-    if (!lot || lot.lot_status !== 'draft') {
-      throw new AppError('Only draft lots can be removed', 409);
+    if (!lot || !['draft', 'published'].includes(lot.lot_status)) {
+      throw new AppError('Only lots that have not opened for bidding can be removed', 409);
     }
+    const { count: bidCount } = await supabaseAdmin.from('auction_bids').select('id', { count: 'exact', head: true }).eq('auction_lot_id', req.params.lotId);
+    if (bidCount) throw new AppError('This lot already has bids and cannot be removed', 409);
 
     const { error } = await supabaseAdmin
       .from('auction_lots')
@@ -488,6 +553,12 @@ export const deleteLot = async (req: AuthenticatedRequest, res: Response, next: 
 // ============================================================
 // WORKFLOW CONTROLLERS (Approval / Status Changes)
 // ============================================================
+
+/** An auction with no lots has nothing to bid on, so it must not be published or opened. */
+async function assertHasLots(auctionId: string, action: string): Promise<void> {
+  const { count } = await supabaseAdmin.from('auction_lots').select('id', { count: 'exact', head: true }).eq('auction_id', auctionId);
+  if (!count) throw new AppError(`Add at least one lot before you ${action} this auction`, 409);
+}
 
 /** Generic auction status transition */
 async function transitionAuction(
@@ -513,6 +584,7 @@ async function transitionAuction(
         `Cannot transition to '${targetStatus}' from '${current.status}'`, 409
       );
     }
+    if (targetStatus === 'scheduled') await assertHasLots(req.params.id, 'approve or publish');
 
     const { data, error } = await supabaseAdmin
       .from('auctions')
@@ -558,11 +630,12 @@ export const openAuction = async (req: AuthenticatedRequest, res: Response, next
     if (!req.user) throw new AppError('Authentication required', 401);
 
     const { data: auction } = await supabaseAdmin.from('auctions')
-      .select('status').eq('id', req.params.id).single();
+      .select('status, auction_number').eq('id', req.params.id).single();
     if (!auction) throw new AppError('Auction not found', 404);
     if (!['scheduled', 'paused'].includes(auction.status)) {
       throw new AppError(`Cannot open from status: ${auction.status}`, 409);
     }
+    await assertHasLots(req.params.id, 'open');
 
     await supabaseAdmin.from('auctions')
       .update({ status: 'open', updated_by: req.user.id })
@@ -572,6 +645,40 @@ export const openAuction = async (req: AuthenticatedRequest, res: Response, next
       .update({ lot_status: 'open' })
       .eq('auction_id', req.params.id)
       .in('lot_status', ['draft', 'published']);
+
+    // Notify farmers
+    const { data: lots } = await supabaseAdmin
+      .from('auction_lots')
+      .select('inventory_batches(farmer_id)')
+      .eq('auction_id', req.params.id);
+
+    if (lots && lots.length > 0) {
+      const farmerIds = [...new Set(
+        lots.map(l => {
+          const b = Array.isArray(l.inventory_batches) ? l.inventory_batches[0] : l.inventory_batches;
+          return b?.farmer_id;
+        }).filter(Boolean)
+      )];
+
+      if (farmerIds.length > 0) {
+        // We need to notify the user profiles corresponding to these farmer_ids.
+        const { data: farmers } = await supabaseAdmin
+          .from('farmers')
+          .select('id, profile_id')
+          .in('id', farmerIds);
+
+        if (farmers && farmers.length > 0) {
+          const notifications = farmers.map(f => ({
+            profile_id: f.profile_id,
+            title: 'Live Auction Started!',
+            message: `Your graded stock is now live in Auction ${auction.auction_number || 'Auction'}.`,
+            type: 'auction_alert',
+            is_read: false
+          }));
+          await supabaseAdmin.from('notifications').insert(notifications);
+        }
+      }
+    }
 
     await auditLog(req.user.id, 'AUCTION_OPEN', 'auction', req.params.id);
     sendSuccess(res, { message: 'Auction is now open for bidding' });
@@ -660,6 +767,15 @@ export const offerToNextBidder = async (req: AuthenticatedRequest, res: Response
       throw new AppError('A reason of at least 10 characters is required', 422);
     }
 
+    const { data: current } = await supabaseAdmin
+      .from('auction_winners')
+      .select('winning_bid_id, buyer_id, buyers!buyer_id(profile_id)')
+      .eq('auction_lot_id', req.params.lotId)
+      .not('payment_status', 'in', '("paid","defaulted")')
+      .order('offer_round', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     const { data, error } = await supabaseAdmin.rpc('offer_to_next_bidder', {
       p_lot_id:   req.params.lotId,
       p_reason:   reason,
@@ -667,7 +783,21 @@ export const offerToNextBidder = async (req: AuthenticatedRequest, res: Response
     });
 
     if (error) throw new AppError(error.message, 500);
-    sendSuccess(res, { data, message: 'Lot offered to next bidder' });
+    const result = data as { success: boolean; message?: string; next_winner?: boolean };
+    if (!result?.success) throw new AppError(result?.message ?? 'Could not reject this bid', 409);
+
+    if (current) {
+      await supabaseAdmin.from('auction_bids')
+        .update({ status: 'rejected', rejection_reason: reason })
+        .eq('id', current.winning_bid_id);
+      const b: any = Array.isArray((current as any).buyers) ? (current as any).buyers[0] : (current as any).buyers;
+      await notifyUser(b?.profile_id, 'bid_result', 'Your bid was not accepted',
+        `Your winning bid on an auction lot was rejected: ${reason}`, 'auction_lot', req.params.lotId);
+    }
+    sendSuccess(res, {
+      data,
+      message: result.next_winner === false ? 'Bid rejected. No other eligible bidder – lot cancelled' : 'Bid rejected and lot offered to the next bidder',
+    });
   } catch (e) { next(e); }
 };
 
@@ -1073,5 +1203,94 @@ export const getAuctionInvoice = async (req: AuthenticatedRequest, res: Response
     }
 
     sendSuccess(res, { data: winner });
+  } catch (e) { next(e); }
+};
+
+// ─── Admin: All auctions (for monitor dashboard) ──────────────────────────────
+// Queries the auctions table directly (not via v_auction_summary view)
+// so that auctions with any centre config are always returned.
+
+export const getAllAuctionsAdmin = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) throw new AppError('Authentication required', 401);
+
+    const { data, error } = await supabaseAdmin
+      .from('auctions')
+      .select(`
+        id, auction_number, title, status, auction_type,
+        start_at, end_at, starting_price, minimum_increment,
+        auto_extension_enabled, extension_minutes,
+        collection_centre_id, created_at, updated_at,
+        collection_centres!collection_centre_id(id, name, district),
+        auction_lots(
+          id, lot_number, lot_status, lot_quantity, unit,
+          starting_price_per_unit, current_price_per_unit,
+          quality_grade,
+          crop_categories!crop_category_id(name)
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) throw new AppError(error.message, 500);
+
+    // Enrich with bid counts per auction
+    const auctionIds = (data ?? []).map((a: any) => a.id);
+    let bidCounts: Record<string, number> = {};
+    if (auctionIds.length > 0) {
+      const { data: bids } = await supabaseAdmin
+        .from('auction_bids')
+        .select('auction_id')
+        .in('auction_id', auctionIds)
+        .in('status', ['accepted', 'winning', 'outbid']);
+
+      (bids ?? []).forEach((b: any) => {
+        bidCounts[b.auction_id] = (bidCounts[b.auction_id] ?? 0) + 1;
+      });
+    }
+
+    const enriched = (data ?? []).map((a: any) => ({
+      ...a,
+      total_lots: a.auction_lots?.length ?? 0,
+      open_lots:  (a.auction_lots ?? []).filter((l: any) => l.lot_status === 'open').length,
+      total_bids: bidCounts[a.id] ?? 0,
+    }));
+
+    sendSuccess(res, { data: enriched });
+  } catch (e) { next(e); }
+};
+
+
+/**
+ * GET /api/auctions/:id/award-board  (staff)
+ * Every lot of the auction with all of its bids (buyer named) and the current winner offer,
+ * so that inventory managers can review bids and accept / reject.
+ */
+export const getAwardBoard = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const auctionId = req.params.id;
+    const [{ data: auction }, { data: lots }, { data: bids }, { data: winners }] = await Promise.all([
+      supabaseAdmin.from('auctions').select('id, auction_number, title, status').eq('id', auctionId).maybeSingle(),
+      supabaseAdmin.from('auction_lots')
+        .select('id, lot_number, lot_status, quality_grade, lot_quantity, unit, starting_price_per_unit, reserve_price_per_unit, crop_categories!crop_category_id(name)')
+        .eq('auction_id', auctionId).order('lot_number'),
+      supabaseAdmin.from('auction_bids')
+        .select('id, auction_lot_id, bid_amount_per_unit, bid_quantity, total_bid_amount, bid_time, status, rejection_reason, buyers!buyer_id(company_name, contact_person)')
+        .eq('auction_id', auctionId).order('bid_amount_per_unit', { ascending: false }),
+      supabaseAdmin.from('auction_winners')
+        .select('id, auction_lot_id, winning_bid_id, offer_round, payment_status, total_award_amount, purchase_order_id, invoice_id')
+        .eq('auction_id', auctionId).order('offer_round', { ascending: false }),
+    ]);
+    if (!auction) throw new AppError('Auction not found', 404);
+
+    const board = (lots ?? []).map((lot: any) => {
+      const lotWinners = (winners ?? []).filter((w: any) => w.auction_lot_id === lot.id);
+      return {
+        ...lot,
+        bids: (bids ?? []).filter((b: any) => b.auction_lot_id === lot.id),
+        current_winner: lotWinners.find((w: any) => w.payment_status !== 'defaulted') ?? null,
+      };
+    });
+    sendSuccess(res, { data: { auction, lots: board } });
   } catch (e) { next(e); }
 };

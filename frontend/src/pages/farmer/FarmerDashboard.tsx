@@ -193,7 +193,7 @@ export const FarmerDashboard: React.FC = () => {
               Ask Sara Ketha Bot
               <Sparkles size={12} className="text-amber-300 inline-block" />
             </span>
-            <span className="text-[10px] font-semibold text-emerald-100/90">Java ML Crop Advisor</span>
+            <span className="text-[10px] font-semibold text-emerald-100/90">Smart Crop Advisor</span>
           </div>
 
           {/* Glowing aura behind corn */}

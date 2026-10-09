@@ -10,9 +10,16 @@ export const PendingPayments: React.FC = () => {
     queryFn: () => collectionsApi.getAll({ limit: '50' }),
   });
 
-  const collections = (collectionsRes?.data?.data || []).filter((c: any) =>
-    c.quality_inspections?.length > 0 && (!c.farmer_payments || c.farmer_payments.length === 0)
-  );
+  const collections = (collectionsRes?.data?.data || []).filter((c: any) => {
+    const rawInsp = c.quality_inspections;
+    const rawPay = c.farmer_payments;
+
+    const hasInspection = Array.isArray(rawInsp) ? rawInsp.length > 0 : Boolean(rawInsp && (typeof rawInsp === 'object' && Object.keys(rawInsp).length > 0));
+    const hasPayment = Array.isArray(rawPay) ? rawPay.length > 0 : Boolean(rawPay && (typeof rawPay === 'object' && Object.keys(rawPay).length > 0));
+    const isProcessed = c.status === 'completed' || c.status === 'paid' || c.status === 'payment_pending';
+
+    return (hasInspection || c.status === 'inspected' || c.status === 'weighed') && !hasPayment && !isProcessed;
+  });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -44,14 +51,14 @@ export const PendingPayments: React.FC = () => {
               </thead>
               <tbody>
                 {collections.map((c: any) => {
-                  const insp = c.quality_inspections[0];
+                  const insp = Array.isArray(c.quality_inspections) ? c.quality_inspections[0] : c.quality_inspections;
                   return (
                     <tr key={c.id}>
                       <td className="font-semibold">{c.collection_no}</td>
                       <td>{c.farmers?.full_name}</td>
                       <td>{c.crop_categories?.name}</td>
-                      <td className="capitalize">{insp.grade?.replace(/_/g, ' ')}</td>
-                      <td className="font-medium text-primary-700">{insp.accepted_qty_kg} kg</td>
+                      <td className="capitalize">{insp?.grade?.replace(/_/g, ' ')}</td>
+                      <td className="font-medium text-primary-700">{insp?.accepted_qty_kg} kg</td>
                       <td className="text-xs text-surface-500">{new Date(c.created_at).toLocaleDateString('en-LK')}</td>
                       <td>
                         <Link to={`/finance/calculate/${c.id}`} className="btn-primary btn-sm">

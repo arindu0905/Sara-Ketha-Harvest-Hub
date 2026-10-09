@@ -28,6 +28,7 @@ import adminRoutes from './routes/adminRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import buyerRoutes from './routes/buyerRoutes';
 import warehouseRoutes from './routes/warehouseRoutes';
+import centreRoutes from './routes/centreRoutes';
 import auctionRoutes from './routes/auctionRoutes';
 import botRoutes from './routes/botRoutes';
 
@@ -39,7 +40,19 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: config.frontendUrl,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, curl)
+    if (!origin) return callback(null, true);
+    // In development, allow all localhost ports
+    if (config.nodeEnv === 'development' && /^http:\/\/localhost:\d+$/.test(origin)) {
+      return callback(null, true);
+    }
+    // In production, only allow configured frontend URL
+    if (origin === config.frontendUrl) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: Origin ${origin} not allowed`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -114,6 +127,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/buyers', buyerRoutes);
 app.use('/api/warehouses', warehouseRoutes);
+app.use('/api/centres', centreRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/bot', botRoutes);
 

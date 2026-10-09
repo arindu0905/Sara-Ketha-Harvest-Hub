@@ -106,15 +106,23 @@ Fill in your Supabase credentials in both files.
 
 ### 3. Set up the database
 
-In your Supabase project, open the SQL Editor and run:
+In your Supabase project, open the SQL Editor and run **every file in `supabase/migrations/` in numeric order (001 → 026)**, then the seed:
 
-```bash
-# In order:
+```
 supabase/migrations/001_initial_schema.sql
-supabase/migrations/002_rls_policies.sql
-supabase/migrations/003_functions_triggers.sql
+...                                         (002 – 022 as before)
+supabase/migrations/023_manager_role_and_notification_types.sql   <- run this one ALONE and let it commit
+supabase/migrations/024_inventory_integrity.sql                   (atomic reserve/release, wastage, expiry sweep)
+supabase/migrations/025_receipts_inspection_payments.sql          (finalize_inspection, receipts, partial payments)
+supabase/migrations/026_management_reports_and_bid_results.sql    (management reports, bid-result notifications)
 supabase/seed/001_seed_data.sql
 ```
+
+> 023 adds values to PostgreSQL enums (`ALTER TYPE ... ADD VALUE`). Postgres cannot use a new enum value in the same transaction that
+> adds it, so run 023 as its own query before 024-026.
+
+Optional: the SQL regression scripts in `supabase/tests/` (`run.sh`) rebuild a **scratch** database and exercise stock reservation,
+wastage, inspection, receipts and payments. Never point them at production.
 
 ### 4. Run the application
 
@@ -170,6 +178,7 @@ MAX_FILE_SIZE=10485760
 | Buyer | Browse products, create orders |
 | Finance Officer | Process payments, generate invoices |
 | Transport Coordinator | Schedule deliveries, manage vehicles |
+| Manager | Read-only management reports (operations, farmer/buyer performance, waste, forecasts, financials) and orders |
 | Administrator | Full system access |
 
 **Demo credentials (after running seed data):**
@@ -189,12 +198,28 @@ MAX_FILE_SIZE=10485760
 
 | Document | Location |
 |----------|----------|
+| User-story coverage (40 stories) | `docs/STORY_COVERAGE.md` |
 | API Reference | `documents/api-documentation/API.md` |
 | Database Schema | `documents/database/ERD.md` |
 | Architecture | `documents/architecture/ARCHITECTURE.md` |
 | Security | `documents/security/SECURITY.md` |
 | Deployment | `documents/deployment/DEPLOYMENT.md` |
 | BCDR | `documents/deployment/BCDR.md` |
+
+---
+
+## Testing
+
+```bash
+cd backend && npm test          # Jest: schemas, crop advisor scoring, CSV safety, error mapping, auctions
+cd frontend && npx tsc --noEmit # type-check; `npm test` runs Vitest
+```
+
+## Security notes
+
+- Never commit `.env` files. If a Supabase service-role key or Gemini key was ever committed or shared, **rotate it** in the Supabase / Google console.
+- The backend uses the service-role key, so authorisation is enforced in the Express routes (role + ownership checks). Several older
+  migrations still contain permissive `USING (true)` RLS policies for `authenticated`; tighten them before exposing the Supabase anon key to untrusted clients.
 
 ---
 

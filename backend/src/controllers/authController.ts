@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { supabaseAdmin } from '../config/supabase';
+import { supabaseAdmin, createAuthClient } from '../config/supabase';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/AppError';
 import { logger } from '../config/logger';
@@ -78,7 +78,17 @@ export const register = async (
     const userId = data.user?.id;
 
     if (userId) {
+      // Find a default collection centre if available
+      let defaultCentreId = null;
+      if (['collection_centre_officer', 'quality_inspector', 'inventory_manager', 'finance_officer', 'transport_coordinator'].includes(role)) {
+        const { data: firstCentre } = await supabaseAdmin.from('collection_centres').select('id').limit(1).maybeSingle();
+        if (firstCentre) defaultCentreId = firstCentre.id;
+      }
+
       // 3. Save encrypted password & activate profile
+      // Farmers start as 'pending' until verified by a Collection Officer or Admin
+      const farmerAccountStatus = role === 'farmer' ? 'pending' : 'active';
+
       await supabaseAdmin
         .from('profiles')
         .upsert({
@@ -86,9 +96,10 @@ export const register = async (
           email,
           full_name: full_name || email,
           role,
-          account_status: 'active',
+          account_status: farmerAccountStatus,
           phone: phone || null,
           encrypted_password: hashedPassword,
+          assigned_centre: defaultCentreId,
         });
 
       const codeSuffix = userId.replace(/-/g, '').substring(0, 8).toUpperCase();
@@ -98,20 +109,25 @@ export const register = async (
         const { data: existingFarmer } = await supabaseAdmin
           .from('farmers')
           .select('id')
-          .eq('profile_id', userId)
-          .single();
+          .or(`profile_id.eq.${userId},email.eq.${email}`)
+          .maybeSingle();
 
-        if (!existingFarmer) {
+        if (existingFarmer) {
+          await supabaseAdmin
+            .from('farmers')
+            .update({ profile_id: userId, verification_status: 'pending' })
+            .eq('id', existingFarmer.id);
+        } else {
           await supabaseAdmin.from('farmers').insert({
             profile_id: userId,
             farmer_code: `FAR-${codeSuffix}`,
-            nic_number: `NIC-${codeSuffix}`,
-            full_name: full_name || email,
+            nic_number: null,
+            full_name: full_name || email.split('@')[0],
             email,
-            phone: phone || '0700000000',
-            address: 'Sri Lanka',
-            district: 'Colombo',
-            verification_status: 'verified',
+            phone: phone || null,
+            address: null,
+            district: null,
+            verification_status: 'pending',
             account_status: 'active',
           });
         }
@@ -120,18 +136,18 @@ export const register = async (
           .from('buyers')
           .select('id')
           .eq('profile_id', userId)
-          .single();
+          .maybeSingle();
 
         if (!existingBuyer) {
           await supabaseAdmin.from('buyers').insert({
             profile_id: userId,
             buyer_code: `BUY-${codeSuffix}`,
-            company_name: full_name || email,
-            contact_person: full_name || email,
+            company_name: full_name || email.split('@')[0],
+            contact_person: full_name || null,
             email,
-            phone: phone || '0700000000',
-            address: 'Sri Lanka',
-            district: 'Colombo',
+            phone: phone || null,
+            address: null,
+            district: null,
             verification_status: 'verified',
             account_status: 'active',
           });
@@ -141,12 +157,16 @@ export const register = async (
 
     logger.info(`New user registered & synced to role database: ${email} (${role})`);
 
+    const isfarmerPending = role === 'farmer';
     sendSuccess(res, {
-      message: 'Account created successfully.',
+      message: isfarmerPending
+        ? 'Farmer account created. Your account requires verification by a Collection Officer or Administrator before you can log in.'
+        : 'Account created successfully.',
       data: {
         id: userId,
         email: data.user?.email,
         role,
+        verification_required: isfarmerPending,
       },
       statusCode: 201,
     });
@@ -167,7 +187,7 @@ export const login = async (
   try {
     const { email, password } = req.body;
 
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    const { data, error } = await createAuthClient().auth.signInWithPassword({
       email,
       password,
     });
@@ -193,6 +213,38 @@ export const login = async (
 
     if (profile?.account_status === 'inactive') {
       throw new AppError('Account inactive. Please contact support.', 403);
+    }
+
+    // Check verification status for farmer accounts
+    if (profile?.role === 'farmer') {
+      let { data: farmerRecord } = await supabaseAdmin
+        .from('farmers')
+        .select('verification_status')
+        .eq('profile_id', data.user.id)
+        .maybeSingle();
+
+      if (!farmerRecord && profile.email) {
+        const { data: farmerByEmail } = await supabaseAdmin
+          .from('farmers')
+          .select('verification_status')
+          .eq('email', profile.email)
+          .maybeSingle();
+        farmerRecord = farmerByEmail;
+      }
+
+      if (farmerRecord) {
+        if (farmerRecord.verification_status === 'pending') {
+          throw new AppError('Your farmer account is pending verification by a Collection Officer or Admin. You cannot log in until your account is verified.', 403);
+        }
+        if (farmerRecord.verification_status === 'rejected') {
+          throw new AppError('Your farmer account verification was rejected. Please contact a Collection Centre Officer or Admin.', 403);
+        }
+        if (farmerRecord.verification_status !== 'verified') {
+          throw new AppError('Your farmer account has not been verified yet by a Collection Officer or Admin.', 403);
+        }
+      } else {
+        throw new AppError('Your farmer account is pending verification by a Collection Officer or Admin.', 403);
+      }
     }
 
     logger.info(`User logged in: ${email}`);
@@ -250,7 +302,7 @@ export const forgotPassword = async (
   try {
     const { email } = req.body;
 
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+    const { error } = await createAuthClient().auth.resetPasswordForEmail(email, {
       redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
     });
 
@@ -300,11 +352,20 @@ export const getMe = async (
     // Get farmer/buyer record if applicable
     let entityRecord = null;
     if (profile.role === 'farmer') {
-      const { data } = await supabaseAdmin
+      let { data } = await supabaseAdmin
         .from('farmers')
         .select('id, farmer_code, verification_status, account_status')
         .eq('profile_id', userId)
-        .single();
+        .maybeSingle();
+
+      if (!data && profile.email) {
+        const { data: farmerByEmail } = await supabaseAdmin
+          .from('farmers')
+          .select('id, farmer_code, verification_status, account_status')
+          .eq('email', profile.email)
+          .maybeSingle();
+        data = farmerByEmail;
+      }
       entityRecord = data;
     } else if (profile.role === 'buyer') {
       const { data } = await supabaseAdmin
@@ -339,7 +400,7 @@ export const refreshToken = async (
       throw new AppError('Refresh token is required', 400);
     }
 
-    const { data, error } = await supabaseAdmin.auth.refreshSession({
+    const { data, error } = await createAuthClient().auth.refreshSession({
       refresh_token,
     });
 

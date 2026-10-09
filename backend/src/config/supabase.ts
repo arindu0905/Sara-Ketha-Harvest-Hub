@@ -30,3 +30,15 @@ export const createUserClient = (userJwt: string) =>
       persistSession: false,
     },
   });
+
+/**
+ * A throw-away client for sign-in / refresh / password-reset calls.
+ *
+ * IMPORTANT: never call signInWithPassword / refreshSession on `supabaseAdmin`. supabase-js keeps the signed-in
+ * user's session on the client and then sends THEIR token with every later query, so the API would silently lose its
+ * service-role privileges (row-level security would start applying, e.g. "new row violates row-level security policy").
+ */
+export const createAuthClient = () =>
+  createClient(config.supabase.url, config.supabase.anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });

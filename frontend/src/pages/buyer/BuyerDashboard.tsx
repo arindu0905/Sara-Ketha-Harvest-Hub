@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ordersApi, invoicesApi } from '../../services/api';
+import { formatLKR } from '../../utils/lkrFormat';
 import { StatCard } from '../../components/ui/StatCard';
 import { ShoppingCart, FileText, DollarSign, ChevronRight, Package } from 'lucide-react';
 
@@ -12,8 +13,11 @@ export const BuyerDashboard: React.FC = () => {
   const orders = ordersRes?.data?.data || [];
   const invoices = invoicesRes?.data?.data || [];
   const totalOrders = ordersRes?.data?.meta?.total || 0;
-  const pendingInvoices = invoices.filter((i: any) => i.status !== 'paid').length;
-  const totalSpent = invoices.filter((i: any) => i.status === 'paid').reduce((s: number, i: any) => s + (i.total_amount_lkr || 0), 0);
+  const open = invoices.filter((i: any) => !['paid', 'cancelled'].includes(i.status));
+  const balance = (i: any) => Math.max(0, Number(i.total_amount_lkr || 0) - Number(i.amount_paid_lkr || 0));
+  const totalOutstanding = open.reduce((s: number, i: any) => s + balance(i), 0);
+  const totalSpent = invoices.reduce((s: number, i: any) => s + Number(i.amount_paid_lkr || 0), 0);
+  const overdue = open.filter((i: any) => i.due_date && new Date(i.due_date) < new Date()).length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -24,9 +28,9 @@ export const BuyerDashboard: React.FC = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Orders" value={totalOrders} icon={<ShoppingCart size={22} />} iconBg="bg-primary-100" iconColor="text-primary-600" loading={isLoading} />
-        <StatCard title="Pending Invoices" value={pendingInvoices} icon={<FileText size={22} />} iconBg="bg-yellow-100" iconColor="text-yellow-600" />
-        <StatCard title="Total Spent" value={`LKR ${totalSpent.toLocaleString()}`} icon={<DollarSign size={22} />} iconBg="bg-blue-100" iconColor="text-blue-600" />
-        <StatCard title="Active Orders" value={orders.filter((o: any) => !['completed', 'cancelled'].includes(o.status)).length} icon={<Package size={22} />} iconBg="bg-earth-100" iconColor="text-earth-600" />
+        <StatCard title="Outstanding balance" value={formatLKR(totalOutstanding, 0)} subtitle={overdue ? `${overdue} overdue` : `${open.length} open invoice(s)`} icon={<FileText size={22} />} iconBg="bg-yellow-100" iconColor="text-yellow-600" />
+        <StatCard title="Total paid" value={formatLKR(totalSpent, 0)} icon={<DollarSign size={22} />} iconBg="bg-blue-100" iconColor="text-blue-600" />
+        <StatCard title="Active Orders" value={orders.filter((o: any) => !['completed', 'cancelled', 'rejected', 'delivered'].includes(o.status)).length} icon={<Package size={22} />} iconBg="bg-earth-100" iconColor="text-earth-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

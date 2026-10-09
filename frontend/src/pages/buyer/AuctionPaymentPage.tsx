@@ -41,7 +41,7 @@ export function AuctionPaymentPage() {
         <div className="text-center">
           <CheckCircle2 size={48} className="text-emerald-500 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-gray-800">No pending payment found</h2>
-          <Link to="/auction/won" className="mt-4 text-emerald-600 hover:underline text-sm">Back to Won Auctions</Link>
+          <Link to="/buyer/auction/won" className="mt-4 text-emerald-600 hover:underline text-sm">Back to Won Auctions</Link>
         </div>
       </div>
     );
@@ -57,7 +57,7 @@ export function AuctionPaymentPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Submitted!</h2>
           <p className="text-gray-500 mb-6">Your payment reference has been recorded. Our team will verify and confirm your payment shortly.</p>
           <Link
-            to="/auction/won"
+            to="/buyer/auction/won"
             className="inline-block bg-emerald-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
           >
             Back to Won Auctions

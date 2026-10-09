@@ -1,7 +1,9 @@
 import React from 'react';
+import { one } from '../../utils/relations';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { collectionsApi } from '../../services/api';
+import { CollectionReceiptCard } from '../../components/receipts/CollectionReceiptCard';
 import { ArrowLeft, Package, Scale, CheckSquare, DollarSign, Clock, User, MapPin } from 'lucide-react';
 
 export const CollectionDetail: React.FC = () => {
@@ -45,7 +47,7 @@ export const CollectionDetail: React.FC = () => {
     );
   }
 
-  const inspection = collection.quality_inspections?.[0];
+  const inspection = one(collection.quality_inspections);
   const payment = collection.farmer_payments?.[0];
   const batch = collection.inventory_batches?.[0];
 
@@ -169,6 +171,8 @@ export const CollectionDetail: React.FC = () => {
         )}
 
         {/* Payment */}
+        {inspection && <div className="lg:col-span-2"><CollectionReceiptCard collectionId={collection.id} role="farmer" /></div>}
+
         {payment && (
           <div className="card">
             <div className="card-header">

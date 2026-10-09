@@ -91,7 +91,7 @@ export function MyBidsPage() {
                       </span>
                     </div>
                     <Link
-                      to={`/auction/${bid.auction_id}`}
+                      to={`/buyer/auction/${bid.auction_id}`}
                       className="font-semibold text-gray-900 hover:text-emerald-700 transition-colors text-sm"
                     >
                       {bid.auctions?.title ?? 'Auction'}
@@ -109,7 +109,7 @@ export function MyBidsPage() {
                 </div>
                 {bid.status === 'outbid' && (
                   <Link
-                    to={`/auction/${bid.auction_id}`}
+                    to={`/buyer/auction/${bid.auction_id}`}
                     className="mt-3 inline-flex items-center gap-1 text-xs text-emerald-600 font-medium hover:underline"
                   >
                     <TrendingUp size={11} /> Bid again →

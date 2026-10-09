@@ -3,8 +3,16 @@ import { supabaseAdmin } from '../config/supabase';
 import { sendSuccess, paginatedResponse } from '../utils/response';
 import { AppError } from '../utils/AppError';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { getFarmerIdForUser, assertFarmerAccess } from '../services/access';
 
 // ─── Crop Categories ──────────────────────────────────────────────
+
+/** Farmers may only touch crops that belong to their own farmer record; staff are unrestricted. */
+async function assertCropAccess(req: AuthenticatedRequest, cropId: string): Promise<void> {
+  const { data } = await supabaseAdmin.from('farmer_crops').select('farmer_id').eq('id', cropId).maybeSingle();
+  if (!data) throw new AppError('Crop not found', 404);
+  await assertFarmerAccess(req, data.farmer_id);
+}
 
 export const getCategories = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -169,7 +177,12 @@ export const getCrops = async (req: AuthenticatedRequest, res: Response, next: N
         crop_varieties!variety_id(id, name)
       `, { count: 'exact' });
 
-    if (farmer_id) query = query.eq('farmer_id', farmer_id);
+    if (req.user?.role === 'farmer') {
+      const own = await getFarmerIdForUser(req.user.id);
+      query = query.eq('farmer_id', own ?? '00000000-0000-0000-0000-000000000000');
+    } else if (farmer_id) {
+      query = query.eq('farmer_id', farmer_id);
+    }
     if (category_id) query = query.eq('category_id', category_id);
 
     // Filter out inactive/deleted crops unless explicitly requested with is_active=false/all
@@ -190,9 +203,15 @@ export const getCrops = async (req: AuthenticatedRequest, res: Response, next: N
 
 export const createCrop = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const body = { ...req.body };
+    if (req.user?.role === 'farmer') {
+      const own = await getFarmerIdForUser(req.user.id);
+      if (!own) throw new AppError('Farmer record not found', 403);
+      body.farmer_id = own; // a farmer can only register crops for themselves
+    }
     const { data, error } = await supabaseAdmin
       .from('farmer_crops')
-      .insert({ ...req.body, created_by: req.user?.id })
+      .insert({ ...body, created_by: req.user?.id })
       .select(`
         *, crop_categories!category_id(name),
         crop_varieties!variety_id(name)
@@ -202,8 +221,9 @@ export const createCrop = async (req: AuthenticatedRequest, res: Response, next:
   } catch (e) { next(e); }
 };
 
-export const getCropById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getCropById = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
+    await assertCropAccess(req, req.params.id);
     const { data, error } = await supabaseAdmin
       .from('farmer_crops')
       .select(`
@@ -218,9 +238,12 @@ export const getCropById = async (req: Request, res: Response, next: NextFunctio
 
 export const updateCrop = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
+    await assertCropAccess(req, req.params.id);
+    const updates = { ...req.body };
+    if (req.user?.role === 'farmer') delete updates.farmer_id; // cannot be re-assigned to someone else
     const { data, error } = await supabaseAdmin
       .from('farmer_crops')
-      .update({ ...req.body })
+      .update(updates)
       .eq('id', req.params.id)
       .select().single();
     if (error) throw new AppError(error.message, 500);
@@ -229,9 +252,10 @@ export const updateCrop = async (req: AuthenticatedRequest, res: Response, next:
   } catch (e) { next(e); }
 };
 
-export const deleteCrop = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const deleteCrop = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
+    await assertCropAccess(req, id);
     
     // Perform hard deletion on farmer_crops table
     const { error: delError } = await supabaseAdmin

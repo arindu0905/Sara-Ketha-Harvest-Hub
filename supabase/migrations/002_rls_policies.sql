@@ -317,6 +317,33 @@ CREATE POLICY "Staff can view and manage orders"
   ));
 
 -- ============================================================
+-- PURCHASE ORDER ITEMS POLICIES
+-- ============================================================
+
+CREATE POLICY "Buyer can manage own order items"
+  ON public.purchase_order_items FOR ALL
+  USING (
+    order_id IN (
+      SELECT id FROM public.purchase_orders
+      WHERE buyer_id IN (SELECT id FROM public.buyers WHERE profile_id = auth.uid())
+         OR created_by = auth.uid()
+    )
+  )
+  WITH CHECK (
+    order_id IN (
+      SELECT id FROM public.purchase_orders
+      WHERE buyer_id IN (SELECT id FROM public.buyers WHERE profile_id = auth.uid())
+         OR created_by = auth.uid()
+    )
+  );
+
+CREATE POLICY "Staff can view and manage order items"
+  ON public.purchase_order_items FOR ALL
+  USING (public.get_current_user_role() IN (
+    'inventory_manager', 'finance_officer', 'transport_coordinator', 'administrator', 'collection_centre_officer'
+  ));
+
+-- ============================================================
 -- INVOICES POLICIES
 -- ============================================================
 
@@ -328,6 +355,23 @@ CREATE POLICY "Buyer can view own invoices"
 
 CREATE POLICY "Finance officers can manage invoices"
   ON public.invoices FOR ALL
+  USING (public.is_finance_officer() OR public.is_administrator());
+
+-- ============================================================
+-- INVOICE ITEMS POLICIES
+-- ============================================================
+
+CREATE POLICY "Buyer can view own invoice items"
+  ON public.invoice_items FOR SELECT
+  USING (
+    invoice_id IN (
+      SELECT id FROM public.invoices
+      WHERE buyer_id IN (SELECT id FROM public.buyers WHERE profile_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "Finance officers can manage invoice items"
+  ON public.invoice_items FOR ALL
   USING (public.is_finance_officer() OR public.is_administrator());
 
 -- ============================================================
@@ -409,6 +453,32 @@ CREATE POLICY "Only administrators can modify settings"
   USING (public.is_administrator());
 
 -- ============================================================
+-- TRANSPORT VEHICLES POLICIES
+-- ============================================================
+
+CREATE POLICY "Transport coordinators and admins can manage vehicles"
+  ON public.transport_vehicles FOR ALL
+  USING (public.get_current_user_role() IN ('transport_coordinator', 'administrator'))
+  WITH CHECK (public.get_current_user_role() IN ('transport_coordinator', 'administrator'));
+
+CREATE POLICY "Staff and authenticated users can view vehicles"
+  ON public.transport_vehicles FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+
+-- ============================================================
+-- DRIVERS POLICIES
+-- ============================================================
+
+CREATE POLICY "Transport coordinators and admins can manage drivers"
+  ON public.drivers FOR ALL
+  USING (public.get_current_user_role() IN ('transport_coordinator', 'administrator'))
+  WITH CHECK (public.get_current_user_role() IN ('transport_coordinator', 'administrator'));
+
+CREATE POLICY "Staff and authenticated users can view drivers"
+  ON public.drivers FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+
+-- ============================================================
 -- DELIVERY SCHEDULES POLICIES
 -- ============================================================
 
@@ -419,7 +489,7 @@ CREATE POLICY "Transport coordinators can manage schedules"
 CREATE POLICY "Staff can view delivery schedules"
   ON public.delivery_schedules FOR SELECT
   USING (public.get_current_user_role() IN (
-    'inventory_manager', 'finance_officer', 'collection_centre_officer'
+    'inventory_manager', 'finance_officer', 'collection_centre_officer', 'transport_coordinator', 'administrator'
   ));
 
 CREATE POLICY "Buyers can view their own delivery schedules"
@@ -430,3 +500,16 @@ CREATE POLICY "Buyers can view their own delivery schedules"
       WHERE buyer_id IN (SELECT id FROM public.buyers WHERE profile_id = auth.uid())
     )
   );
+
+-- ============================================================
+-- DELIVERY TRACKING POLICIES
+-- ============================================================
+
+CREATE POLICY "Transport coordinators can manage tracking"
+  ON public.delivery_tracking FOR ALL
+  USING (public.get_current_user_role() IN ('transport_coordinator', 'administrator'));
+
+CREATE POLICY "Authenticated users can view tracking"
+  ON public.delivery_tracking FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+

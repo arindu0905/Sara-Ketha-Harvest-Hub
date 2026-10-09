@@ -19,6 +19,7 @@ export const NotificationsPage: React.FC = () => {
     mutationFn: (id: string) => notificationsApi.markRead(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 
@@ -27,6 +28,7 @@ export const NotificationsPage: React.FC = () => {
     onSuccess: () => {
       toast.success('All notifications marked as read');
       queryClient.invalidateQueries({ queryKey: ['user-notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 

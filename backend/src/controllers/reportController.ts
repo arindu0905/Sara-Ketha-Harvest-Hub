@@ -19,11 +19,23 @@ export const getDashboardStats = async (_req: Request, res: Response, next: Next
 
 /**
  * GET /api/reports/collections
- * Daily and monthly collection summary.
+ * Returns raw collection list + monthly aggregates.
+ * Supports ?days=N for rolling window or ?from_date + ?to_date for explicit range.
  */
 export const getCollectionReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { from_date, to_date, centre_id, category_id } = req.query as Record<string, string>;
+    const { from_date, to_date, days: daysParam, centre_id, category_id } = req.query as Record<string, string>;
+    const today = new Date();
+
+    let fromDate = from_date;
+    let toDate = to_date;
+
+    if (!fromDate && daysParam) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - parseInt(daysParam, 10));
+      fromDate = d.toISOString().split('T')[0];
+      toDate = today.toISOString().split('T')[0];
+    }
 
     let query = supabaseAdmin
       .from('produce_collections')
@@ -35,9 +47,9 @@ export const getCollectionReport = async (req: Request, res: Response, next: Nex
         quality_inspections(grade, accepted_qty_kg, rejected_qty_kg)
       `);
 
-    if (from_date) query = query.gte('created_at', from_date);
-    if (to_date) query = query.lte('created_at', to_date);
-    if (centre_id) query = query.eq('centre_id', centre_id);
+    if (fromDate) query = query.gte('created_at', fromDate);
+    if (toDate)   query = query.lte('created_at', toDate + 'T23:59:59');
+    if (centre_id)   query = query.eq('centre_id', centre_id);
     if (category_id) query = query.eq('category_id', category_id);
 
     const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
@@ -55,7 +67,47 @@ export const getCollectionReport = async (req: Request, res: Response, next: Nex
       return acc;
     }, { total_collections: 0, total_net_weight: 0, total_accepted: 0, total_rejected: 0 });
 
-    sendSuccess(res, { data: { collections: data, totals } });
+    // Monthly aggregation for chart
+    const monthMap: Record<string, { month_name: string; count: number; accepted_kg: number; rejected_kg: number; total_kg: number }> = {};
+
+    // Pre-populate months in the range
+    if (fromDate && toDate) {
+      const cursor = new Date(fromDate);
+      cursor.setDate(1);
+      const end = new Date(toDate);
+      while (cursor <= end) {
+        const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+        if (!monthMap[key]) {
+          monthMap[key] = {
+            month_name: cursor.toLocaleString('default', { month: 'short', year: daysParam && parseInt(daysParam) > 90 ? '2-digit' : undefined }),
+            count: 0, accepted_kg: 0, rejected_kg: 0, total_kg: 0,
+          };
+        }
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+    }
+
+    (data || []).forEach((c: any) => {
+      const d = new Date(c.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthMap[key]) {
+        monthMap[key] = {
+          month_name: d.toLocaleString('default', { month: 'short' }),
+          count: 0, accepted_kg: 0, rejected_kg: 0, total_kg: 0,
+        };
+      }
+      monthMap[key].count++;
+      monthMap[key].total_kg += c.net_weight_kg || 0;
+      const insp = c.quality_inspections?.[0];
+      if (insp) {
+        monthMap[key].accepted_kg += insp.accepted_qty_kg || 0;
+        monthMap[key].rejected_kg += insp.rejected_qty_kg || 0;
+      }
+    });
+
+    const monthly = Object.keys(monthMap).sort().map(key => ({ key, ...monthMap[key] }));
+
+    sendSuccess(res, { data: { collections: data, totals, monthly } });
   } catch (e) { next(e); }
 };
 
@@ -145,56 +197,131 @@ export const getPaymentReport = async (req: Request, res: Response, next: NextFu
 
 /**
  * GET /api/reports/financial
+ * Supports ?days=7|30|90|365 (rolling window) or ?year=YYYY (full year)
+ *
+ * Uses:
+ *   buyer_invoices.total_amount_lkr  → Total invoiced sales to buyers
+ *   farmer_payments.net_amount_lkr   → Net farmer disbursements
+ *   farmer_payments.total_deductions_lkr → Deductions collected
  */
 export const getFinancialReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { year = new Date().getFullYear().toString() } = req.query as Record<string, string>;
+    const { year: yearParam, days: daysParam } = req.query as Record<string, string>;
+    const today = new Date();
 
-    // Monthly buyer revenue
-    const { data: revenue } = await supabaseAdmin
-      .from('buyer_payments')
-      .select('amount_lkr, payment_date')
-      .gte('payment_date', `${year}-01-01`)
-      .lte('payment_date', `${year}-12-31`);
+    let fromDate: string;
+    let toDate: string;
+    const showYear = !daysParam;
 
-    // Monthly farmer payouts
-    const { data: payouts } = await supabaseAdmin
+    if (daysParam) {
+      const daysNum = parseInt(daysParam, 10) || 30;
+      const from = new Date(today);
+      from.setDate(from.getDate() - daysNum);
+      fromDate = from.toISOString().split('T')[0];
+      toDate = today.toISOString().split('T')[0];
+    } else {
+      const year = yearParam || today.getFullYear().toString();
+      fromDate = `${year}-01-01`;
+      toDate   = `${year}-12-31`;
+    }
+
+    // ── Buyer revenue (buyer_invoices table) ──────────────────────────────
+    const { data: invoiceData } = await supabaseAdmin
+      .from('buyer_invoices')
+      .select('total_amount_lkr, created_at')
+      .gte('created_at', `${fromDate}T00:00:00`)
+      .lte('created_at', `${toDate}T23:59:59`);
+
+    // ── Farmer payouts (farmer_payments – all non-cancelled) ──────────────
+    const { data: payoutData } = await supabaseAdmin
       .from('farmer_payments')
-      .select('net_amount_lkr, paid_at')
-      .eq('status', 'paid')
-      .gte('paid_at', `${year}-01-01`)
-      .lte('paid_at', `${year}-12-31`);
+      .select('net_amount_lkr, gross_amount_lkr, total_deductions_lkr, paid_at, calculated_at, created_at')
+      .not('status', 'eq', 'cancelled')
+      .gte('created_at', `${fromDate}T00:00:00`)
+      .lte('created_at', `${toDate}T23:59:59`);
 
-    // Aggregate by month
-    const monthlyData = Array.from({ length: 12 }, (_, i) => ({
-      month: i + 1,
-      month_name: new Date(2024, i).toLocaleString('default', { month: 'short' }),
-      revenue: 0,
-      farmer_payouts: 0,
-      profit: 0,
-    }));
+    // ── Build month map ────────────────────────────────────────────────────
+    const monthMap: Record<string, {
+      month: number; year: number; month_name: string;
+      revenue: number; farmer_payouts: number; deductions: number; profit: number;
+    }> = {};
 
-    (revenue || []).forEach((r: any) => {
-      const m = new Date(r.payment_date).getMonth();
-      monthlyData[m].revenue += r.amount_lkr;
+    const cursor = new Date(fromDate);
+    cursor.setDate(1);
+    const endCursor = new Date(toDate);
+    while (cursor <= endCursor) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthMap[key]) {
+        const labelOpts: Intl.DateTimeFormatOptions = { month: 'short' };
+        if (!showYear) labelOpts.year = '2-digit';
+        monthMap[key] = {
+          month: cursor.getMonth() + 1,
+          year:  cursor.getFullYear(),
+          month_name: cursor.toLocaleString('default', labelOpts),
+          revenue: 0, farmer_payouts: 0, deductions: 0, profit: 0,
+        };
+      }
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    // Accumulate buyer revenue
+    (invoiceData || []).forEach((r: any) => {
+      const d = new Date(r.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthMap[key]) {
+        monthMap[key].revenue += Number(r.total_amount_lkr || 0);
+      } else {
+        monthMap[key] = {
+          month: d.getMonth() + 1, year: d.getFullYear(),
+          month_name: d.toLocaleString('default', { month: 'short' }),
+          revenue: Number(r.total_amount_lkr || 0), farmer_payouts: 0, deductions: 0, profit: 0,
+        };
+      }
     });
 
-    (payouts || []).forEach((p: any) => {
-      const m = new Date(p.paid_at!).getMonth();
-      monthlyData[m].farmer_payouts += p.net_amount_lkr;
+    // Accumulate farmer payouts
+    (payoutData || []).forEach((p: any) => {
+      const dateStr = p.paid_at || p.calculated_at || p.created_at;
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthMap[key]) {
+        monthMap[key].farmer_payouts += Number(p.net_amount_lkr || 0);
+        monthMap[key].deductions     += Number(p.total_deductions_lkr || 0);
+      }
     });
 
-    monthlyData.forEach(m => { m.profit = m.revenue - m.farmer_payouts; });
+    // Compute profit and sort
+    const monthlyData = Object.keys(monthMap).sort().map(key => {
+      const m = monthMap[key];
+      m.profit = m.revenue - m.farmer_payouts;
+      return m;
+    });
 
     const totals = monthlyData.reduce((acc, m) => ({
-      total_revenue: acc.total_revenue + m.revenue,
-      total_payouts: acc.total_payouts + m.farmer_payouts,
-      total_profit: acc.total_profit + m.profit,
-    }), { total_revenue: 0, total_payouts: 0, total_profit: 0 });
+      total_revenue:      acc.total_revenue      + m.revenue,
+      total_payouts:      acc.total_payouts      + m.farmer_payouts,
+      total_deductions:   acc.total_deductions   + m.deductions,
+      total_profit:       acc.total_profit       + m.profit,
+    }), { total_revenue: 0, total_payouts: 0, total_deductions: 0, total_profit: 0 });
 
-    sendSuccess(res, { data: { monthly: monthlyData, totals, year: parseInt(year) } });
+    sendSuccess(res, {
+      data: {
+        monthly: monthlyData,
+        // Flat keys that frontend needs
+        total_invoiced:       totals.total_revenue,
+        total_disbursements:  totals.total_payouts,
+        total_deductions:     totals.total_deductions,
+        net_margin:           totals.total_profit,
+        totals,
+        from_date: fromDate,
+        to_date:   toDate,
+      },
+    });
   } catch (e) { next(e); }
 };
+
+
 
 /**
  * GET /api/reports/wastage

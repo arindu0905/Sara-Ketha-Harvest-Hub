@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, X, Send, Sparkles, Sprout, MapPin, History, RefreshCw, Search, Minimize2, Maximize2, ChevronDown, ArrowRight, Activity, Filter, CheckCircle2 } from 'lucide-react';
+import { Bot, X, Send, Sparkles, Sprout, MapPin, History, RefreshCw, Search, Minimize2, Maximize2, ChevronDown, ArrowRight, Activity, Filter, CheckCircle2, Droplets } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
-import axios from 'axios';
+import apiClient from '../../services/apiClient';
 
 interface Message {
   id: string;
   sender: 'bot' | 'user';
   text: string;
-  type?: 'prompt' | 'input_district' | 'input_prev_crop' | 'recommendations';
+  type?: 'prompt' | 'input_district' | 'input_prev_crop' | 'input_soil' | 'recommendations';
   data?: any;
+  aiPowered?: boolean;
+  aiSource?: 'gemini' | 'fallback';
+  districtProfile?: any;
 }
 
 export interface DistrictOption {
@@ -22,7 +25,7 @@ export interface DistrictOption {
 
 export const SRI_LANKA_DISTRICTS: DistrictOption[] = [
   { id: 'Ampara', en: 'Ampara', si: 'අම්පාර', ta: 'அம்பாறை', zone: 'Dry Zone' },
-  { id: 'Anuradhapura', en: 'Anuradhapura', si: 'අනුරාධපුරය', ta: 'අනුරාධපුරය', zone: 'Dry Zone' },
+  { id: 'Anuradhapura', en: 'Anuradhapura', si: 'අනුරාධපුරය', ta: 'அனுராதபுரம்', zone: 'Dry Zone' },
   { id: 'Badulla', en: 'Badulla', si: 'බදුල්ල', ta: 'பதுளை', zone: 'High Country' },
   { id: 'Batticaloa', en: 'Batticaloa', si: 'මඩකලපුව', ta: 'மட்டக்களப்பு', zone: 'Dry Zone' },
   { id: 'Colombo', en: 'Colombo', si: 'කොළඹ', ta: 'கொழும்பு', zone: 'Wet Zone' },
@@ -38,7 +41,7 @@ export const SRI_LANKA_DISTRICTS: DistrictOption[] = [
   { id: 'Kurunegala', en: 'Kurunegala', si: 'කුරුණෑගල', ta: 'குருநாகல்', zone: 'Mid Country' },
   { id: 'Mannar', en: 'Mannar', si: 'මන්නාරම', ta: 'மன்னார்', zone: 'Dry Zone' },
   { id: 'Matale', en: 'Matale', si: 'මාතලේ', ta: 'மாத்தளை', zone: 'Mid Country' },
-  { id: 'Matara', en: 'Matara', si: 'මාතර', ta: 'මාතර', zone: 'Wet Zone' },
+  { id: 'Matara', en: 'Matara', si: 'මාතර', ta: 'மாத்தறை', zone: 'Wet Zone' },
   { id: 'Moneragala', en: 'Moneragala', si: 'මොණරාගල', ta: 'மொணராகலை', zone: 'Dry Zone' },
   { id: 'Mullaitivu', en: 'Mullaitivu', si: 'මුලතිවු', ta: 'முல்லைத்தீவு', zone: 'Dry Zone' },
   { id: 'Nuwara Eliya', en: 'Nuwara Eliya', si: 'නුවරඑළිය', ta: 'நுவரெலியா', zone: 'High Country' },
@@ -67,10 +70,21 @@ const PREVIOUS_CROPS_OPTIONS: CropOption[] = [
   { id: 'None', en: 'None / First Time', si: 'මුකුත් නැත / පළමු වතාව', ta: 'எதுவுமில்லை' },
 ];
 
+interface SoilOption { id: string; ph: number | null; en: string; si: string; ta: string }
+const SOIL_OPTIONS: SoilOption[] = [
+  { id: 'acidic', ph: 5.0, en: 'Acidic (pH below 5.5)', si: 'අම්ල (pH 5.5 ට අඩු)', ta: 'அமிலத் தன்மை (pH 5.5க்குக் கீழ்)' },
+  { id: 'slightly_acidic', ph: 6.0, en: 'Slightly acidic (pH 5.5–6.5)', si: 'මඳ අම්ල (pH 5.5–6.5)', ta: 'சற்று அமிலம் (pH 5.5–6.5)' },
+  { id: 'neutral', ph: 6.8, en: 'Neutral (pH 6.5–7.2)', si: 'උදාසීන (pH 6.5–7.2)', ta: 'நடுநிலை (pH 6.5–7.2)' },
+  { id: 'alkaline', ph: 7.8, en: 'Alkaline (pH above 7.2)', si: 'ක්ෂාරීය (pH 7.2 ට වැඩි)', ta: 'காரத் தன்மை (pH 7.2க்கு மேல்)' },
+  { id: 'unknown', ph: null, en: "I don't know", si: 'මම නොදනිමි', ta: 'எனக்குத் தெரியாது' },
+];
+
 export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { language, setLanguage } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [step, setStep] = useState<'greeting' | 'district' | 'prev_crop' | 'loading' | 'done'>('greeting');
+  const [step, setStep] = useState<'greeting' | 'district' | 'prev_crop' | 'soil' | 'loading' | 'done'>('greeting');
+  const [soilPhInput, setSoilPhInput] = useState('');
+  const [soilPhError, setSoilPhError] = useState('');
   const [selectedDistrictId, setSelectedDistrictId] = useState('');
   const [selectedDistrictName, setSelectedDistrictName] = useState('');
   const [selectedPrevCrop, setSelectedPrevCrop] = useState('');
@@ -106,6 +120,8 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
     setSelectedDistrictName('');
     setSelectedPrevCrop('');
     setCustomCropInput('');
+    setSoilPhInput('');
+    setSoilPhError('');
     setDistrictSearch('');
     setZoneFilter('All');
 
@@ -151,7 +167,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
     setStep('prev_crop');
   };
 
-  const handleSelectPrevCrop = async (cropInput: string | CropOption) => {
+  const handleSelectPrevCrop = (cropInput: string | CropOption) => {
     const cropId = typeof cropInput === 'string' ? cropInput : cropInput.id;
     const localizedCropName = typeof cropInput === 'string'
       ? cropInput
@@ -161,7 +177,42 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
     setCustomCropInput('');
 
     const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: localizedCropName };
-    
+    const soilPrompt: Message = {
+      id: (Date.now() + 1).toString(),
+      sender: 'bot',
+      text:
+        language === 'si'
+          ? 'හොඳයි! ඔබේ පසේ තත්ත්වය (pH) කොහොමද? ඔබ දන්නේ නැත්නම් "මම නොදනිමි" තෝරන්න.'
+          : language === 'ta'
+          ? 'நல்லது! உங்கள் மண்ணின் தன்மை (pH) எப்படி உள்ளது? தெரியவில்லை என்றால் "எனக்குத் தெரியாது" என்பதைத் தேர்ந்தெடுக்கவும்.'
+          : 'Good! What is your soil like (pH)? Choose "I don\'t know" if you are not sure.',
+      type: 'input_soil',
+    };
+    setMessages((prev) => [...prev, userMsg, soilPrompt]);
+    setStep('soil');
+  };
+
+  const submitSoil = (ph: number | null, label: string) => {
+    const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: label };
+    setSoilPhError('');
+    setSoilPhInput('');
+    runRecommendation(selectedPrevCrop, ph, label, userMsg);
+  };
+
+  const handleSoilPhSubmit = () => {
+    const n = Number(soilPhInput);
+    if (!soilPhInput.trim() || !Number.isFinite(n) || n < 3 || n > 10) {
+      setSoilPhError(
+        language === 'si' ? 'pH අගය 3 සහ 10 අතර සංඛ්‍යාවක් විය යුතුය'
+        : language === 'ta' ? 'pH மதிப்பு 3 முதல் 10 வரையிலான எண்ணாக இருக்க வேண்டும்'
+        : 'pH must be a number between 3 and 10'
+      );
+      return;
+    }
+    submitSoil(n, `pH ${n}`);
+  };
+
+  const runRecommendation = async (cropId: string, soilPh: number | null, soilLabel: string, userMsg: Message) => {
     const processingMsgText =
       language === 'si'
         ? 'ස්තූතියි! ඔබ සඳහා වඩාත්ම සුදුසු බෝග නිර්දේශ ගණනය කරමින් පවතී...'
@@ -180,9 +231,11 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
     setStep('loading');
 
     try {
-      const response = await axios.post('/api/bot/recommend', {
+      const response = await apiClient.post('/bot/recommend', {
         district: selectedDistrictId,
         previous_crop: cropId,
+        soil_ph: soilPh ?? undefined,
+        soil_condition: soilLabel,
         lang: language,
       });
 
@@ -194,6 +247,9 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
         text: recData?.header || 'Here are your recommended optimal crops:',
         type: 'recommendations',
         data: recData?.recommendations || [],
+        aiPowered: recData?.ai_powered || false,
+        aiSource: recData?.ai_source || 'fallback',
+        districtProfile: recData?.district_profile || null,
       };
 
       setMessages((prev) => [...prev, recMsg]);
@@ -246,7 +302,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
             <p className="font-bold text-xs flex items-center gap-1 leading-tight">
               Sara Ketha Bot <Sparkles size={12} className="text-amber-300" />
             </p>
-            <p className="text-[10px] text-emerald-200/80 font-medium">Java ML Engine • Active</p>
+            <p className="text-[10px] text-emerald-200/80 font-medium">Smart Crop Advisor • Active</p>
           </div>
           <ChevronDown size={16} className="text-emerald-200 group-hover:translate-y-[-2px] transition-transform rotate-180 ml-1" />
         </button>
@@ -274,7 +330,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
               Sara Ketha Bot <Sparkles size={14} className="text-amber-300" />
             </h3>
             <span className="text-[10px] text-emerald-200/90 flex items-center gap-1 font-medium">
-              <Activity size={10} className="text-emerald-400 animate-pulse" /> Java ML Random Forest
+              <Activity size={10} className="text-emerald-400 animate-pulse" /> Transparent scoring model
             </span>
           </div>
         </div>
@@ -504,9 +560,70 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                 </div>
               )}
 
+              {/* Soil condition options */}
+              {msg.type === 'input_soil' && step === 'soil' && (
+                <div className="mt-3 pt-3 border-t border-surface-100 space-y-3 animate-msg-in">
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {SOIL_OPTIONS.map((opt) => {
+                      const label = opt[language as 'en' | 'si' | 'ta'] || opt.en;
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => submitSoil(opt.ph, label)}
+                          className="btn-ghost text-xs py-2 px-2.5 rounded-xl border border-surface-200 hover:border-primary-500 hover:bg-primary-50 text-surface-800 text-left flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Droplets size={12} className="text-primary-600 shrink-0" />
+                          <span className="font-medium">{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <form onSubmit={(e) => { e.preventDefault(); handleSoilPhSubmit(); }} className="space-y-1">
+                    <span className="text-[11px] font-medium text-surface-400 block">
+                      {language === 'si' ? 'හෝ නිවැරදි pH අගය ඇතුළත් කරන්න (3–10):' : language === 'ta' ? 'அல்லது துல்லியமான pH மதிப்பை உள்ளிடவும் (3–10):' : 'Or enter your exact pH (3–10):'}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number" step="0.1" min="3" max="10"
+                        value={soilPhInput}
+                        onChange={(e) => { setSoilPhInput(e.target.value); setSoilPhError(''); }}
+                        className="flex-1 text-xs px-3 py-2 rounded-xl border border-surface-300 focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 bg-white"
+                      />
+                      <button type="submit" disabled={!soilPhInput.trim()} className="btn-primary text-xs py-2 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-40 text-white font-semibold shrink-0 flex items-center gap-1 cursor-pointer">
+                        <span>{language === 'si' ? 'යවන්න' : language === 'ta' ? 'அனுப்பு' : 'Submit'}</span>
+                        <Send size={12} />
+                      </button>
+                    </div>
+                    {soilPhError && <p className="text-[11px] text-red-600">{soilPhError}</p>}
+                  </form>
+                </div>
+              )}
+
               {/* Crop Recommendations Cards with Actions */}
               {msg.type === 'recommendations' && msg.data && (
                 <div className="mt-3 space-y-2.5 animate-msg-in">
+                  {/* AI Source Badge */}
+                  <div className="flex items-center gap-2 mb-1">
+                    {(msg as any).aiPowered ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                        <Sparkles size={10} /> Powered by Google Gemini AI
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                        <Activity size={10} /> Agro-Climatic Decision Engine
+                      </span>
+                    )}
+                  </div>
+
+                  {/* District Profile Summary */}
+                  {(msg as any).districtProfile && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 mb-2 text-[10px] text-blue-800 space-y-0.5">
+                      <p className="font-bold text-blue-900">{(msg as any).districtProfile.zone}</p>
+                      <p>🌧 Rainfall: {(msg as any).districtProfile.rainfall} · 🏔 {(msg as any).districtProfile.altitude}</p>
+                      <p>🌡 {(msg as any).districtProfile.climate}</p>
+                    </div>
+                  )}
+
                   {msg.data.map((item: any) => (
                     <div
                       key={item.rank}
@@ -518,9 +635,14 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                             #{item.rank}
                           </span>
                           <span className="font-bold text-emerald-950 text-base">{item.name}</span>
+                          {item.ai_powered && (
+                            <span title="AI recommended" className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center">
+                              <Sparkles size={9} />
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs">
-                          {item.suitability_score}% Match
+                          {item.suitability_score}/100 suitability
                         </span>
                       </div>
 
@@ -533,6 +655,36 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                       </div>
 
                       <p className="text-xs text-emerald-900/90 leading-snug pt-0.5">{item.rationale}</p>
+
+                      {Array.isArray(item.score_breakdown) && (
+                        <details className="text-[10px] text-emerald-900/80">
+                          <summary className="cursor-pointer font-semibold">Why this score?</summary>
+                          <ul className="mt-1 space-y-0.5">
+                            {item.score_breakdown.map((f: any) => (
+                              <li key={f.name}><b>{f.name.replace('_', ' ')}</b> {f.points}/{f.max} – {f.note}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+
+                      {/* Season / Water / Profitability Tags */}
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {item.season && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-200">
+                            📅 {item.season}
+                          </span>
+                        )}
+                        {item.water_need && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded-full border border-sky-200">
+                            💧 {item.water_need} water
+                          </span>
+                        )}
+                        {item.profitability && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold bg-violet-100 text-violet-800 px-1.5 py-0.5 rounded-full border border-violet-200">
+                            💰 {item.profitability} profit
+                          </span>
+                        )}
+                      </div>
 
                       {/* Direct Action Link */}
                       <div className="pt-1.5 flex items-center justify-end">
@@ -549,6 +701,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                   ))}
                 </div>
               )}
+
             </div>
           </div>
         ))}
@@ -562,7 +715,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
               <span className="w-2 h-2 bg-emerald-600 rounded-full animate-dot-3" />
             </div>
             <span className="text-xs font-semibold text-surface-600">
-              Random Forest Model evaluating optimal crop vectors...
+              Gemini AI analyzing optimal crop patterns for your region...
             </span>
           </div>
         )}
@@ -572,7 +725,8 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
       {/* ─── Footer Bar ──────────────────────────────────────────────────────── */}
       <div className="p-3 bg-white border-t border-surface-200 flex items-center justify-between text-xs text-surface-500 shrink-0">
         <span className="flex items-center gap-1.5 font-medium text-2xs text-surface-600">
-          <Sprout size={14} className="text-primary-600" /> Powered by Java ML / Weka Engine (Random Forest Classifier)
+          <Sparkles size={12} className="text-blue-500" />
+          <span>Gemini AI + Agro-Climatic Decision Engine</span>
         </span>
         {step === 'done' && (
           <button

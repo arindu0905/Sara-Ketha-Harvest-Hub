@@ -1,6 +1,7 @@
 import app from './app';
 import { config } from './config/config';
 import { logger } from './config/logger';
+import { startAuctionScheduler } from './services/auctionScheduler';
 
 const server = app.listen(config.port, () => {
   logger.info(`🌾 HarvestHub API server running on port ${config.port}`);
@@ -8,9 +9,13 @@ const server = app.listen(config.port, () => {
   logger.info(`📊 Health check: http://localhost:${config.port}/health`);
 });
 
+// Auctions open at their start time and close at their end time without anyone clicking a button.
+const auctionTimer = startAuctionScheduler();
+
 // Graceful shutdown
 const gracefulShutdown = (signal: string) => {
   logger.info(`Received ${signal}. Shutting down gracefully...`);
+  clearInterval(auctionTimer);
   server.close(() => {
     logger.info('Server closed successfully');
     process.exit(0);

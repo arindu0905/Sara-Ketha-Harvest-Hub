@@ -32,7 +32,16 @@ const CreateAuctionBase = z.object({
   extension_minutes:      z.number().int().positive().default(5),
 });
 
+/** A small grace period so an auction created "right now" is not rejected by clock drift or typing time. */
+const GRACE_MS = 2 * 60 * 1000;
+
 export const CreateAuctionSchema = CreateAuctionBase.refine(
+  (d) => new Date(d.start_at).getTime() >= Date.now() - GRACE_MS,
+  { message: 'Start date and time cannot be in the past', path: ['start_at'] }
+).refine(
+  (d) => new Date(d.end_at).getTime() > Date.now(),
+  { message: 'End date and time cannot be in the past', path: ['end_at'] }
+).refine(
   (d) => new Date(d.start_at) < new Date(d.end_at),
   { message: 'start_at must be before end_at', path: ['start_at'] }
 ).refine(
@@ -74,6 +83,11 @@ const CreateLotBase = z.object({
   origin_district:           z.string().max(100).optional().nullable(),
   origin_divisional_secretariat: z.string().max(100).optional().nullable(),
   traceability_notes:        z.string().max(1000).optional().nullable(),
+  images:                    z.array(z.object({
+    storage_path: z.string(),
+    file_name: z.string(),
+    sort_order: z.number().int().optional(),
+  })).optional(),
 });
 
 export const CreateLotSchema = CreateLotBase.refine(
@@ -140,8 +154,8 @@ export const AuctionListQuerySchema = z.object({
   centre_id:   z.string().uuid().optional(),
   crop:        z.string().optional(),
   grade:       z.string().optional(),
-  page:        z.string().regex(/^\d+$/).optional().transform(Number),
-  limit:       z.string().regex(/^\d+$/).optional().transform(Number),
+  page:        z.string().regex(/^\d+$/).optional().transform((v) => (v === undefined ? undefined : Number(v))),
+  limit:       z.string().regex(/^\d+$/).optional().transform((v) => (v === undefined ? undefined : Number(v))),
   from:        z.string().datetime().optional(),
   to:          z.string().datetime().optional(),
 }).transform((d) => ({

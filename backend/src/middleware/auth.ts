@@ -55,6 +55,25 @@ export const authenticate = async (
       throw new AppError('Account inactive. Please contact support.', 403);
     }
 
+    // Block pending accounts — farmers must be verified before they can use the system.
+    // The farmer record is the source of truth: if it is already verified (e.g. approved directly in the database),
+    // activate the profile instead of locking the farmer out.
+    if (profile.account_status === 'pending') {
+      let verified = false;
+      if (profile.role === 'farmer') {
+        const { data: farmer } = await supabaseAdmin
+          .from('farmers').select('verification_status').eq('profile_id', profile.id).maybeSingle();
+        verified = farmer?.verification_status === 'verified';
+        if (verified) {
+          await supabaseAdmin.from('profiles').update({ account_status: 'active' }).eq('id', profile.id);
+          profile.account_status = 'active';
+        }
+      }
+      if (!verified) {
+        throw new AppError('Your account is pending verification by a Collection Officer or Admin. You cannot access the system until your account is verified.', 403);
+      }
+    }
+
     req.user = {
       id: profile.id,
       email: profile.email,
@@ -79,13 +98,13 @@ export const requireRole = (...allowedRoles: string[]) => {
       return;
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      logger.warn(`Access denied: user ${req.user.id} (${req.user.role}) attempted ${allowedRoles.join('|')} route`);
-      next(new AppError(`Access denied. Required role: ${allowedRoles.join(' or ')}`, 403));
-      return;
+    // Administrators always have global superuser access to all routes, actions, and processes
+    if (req.user.role === 'administrator' || allowedRoles.includes(req.user.role)) {
+      return next();
     }
 
-    next();
+    logger.warn(`Access denied: user ${req.user.id} (${req.user.role}) attempted ${allowedRoles.join('|')} route`);
+    next(new AppError(`Access denied. Required role: ${allowedRoles.join(' or ')}`, 403));
   };
 };
 
@@ -123,4 +142,39 @@ export const optionalAuth = async (
   }
 
   next();
+};
+
+/**
+ * Middleware factory: Validate request body/query/params against a Zod schema.
+ * Schema must be structured as z.object({ body: z.object({...}) }) etc.
+ * Returns 400 with field-level error details on failure.
+ */
+export const validate = (schema: any) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const result = schema.safeParse({
+      body: req.body,
+      query: req.query,
+      params: req.params,
+    });
+
+    if (!result.success) {
+      const fieldErrors = result.error.errors.map((err: any) => ({
+        field: err.path.slice(1).join('.'), // strip 'body'/'query'/'params' prefix
+        message: err.message,
+      }));
+
+      res.status(400).json({
+        success: false,
+        message: fieldErrors[0]?.message || 'Validation failed. Please check the required fields.',
+        errors: fieldErrors,
+      });
+      return;
+    }
+
+    // Merge validated / coerced data back into the request
+    if (result.data.body !== undefined) req.body = result.data.body;
+    if (result.data.query !== undefined) req.query = result.data.query;
+
+    next();
+  };
 };

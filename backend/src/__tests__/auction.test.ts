@@ -11,13 +11,15 @@ describe('Produce Auction Module – Validation Schemas Unit Tests', () => {
   // ─── CreateAuctionSchema ───────────────────────────────────────────────────
 
   describe('CreateAuctionSchema', () => {
+    // dates are relative to "now" because past dates are rejected
+    const hoursFromNow = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
     const validAuctionData = {
       collection_centre_id:   validUuid1,
       auction_type:           'open_ascending',
       title:                  'Colombo Grade A Tomato Auction',
       description:            'Fresh morning harvest tomatoes from Dambulla collection centre.',
-      start_at:               '2026-08-10T08:00:00.000Z',
-      end_at:                 '2026-08-10T12:00:00.000Z',
+      start_at:               hoursFromNow(24),
+      end_at:                 hoursFromNow(28),
       starting_price:         150.00,
       reserve_price:          180.00,
       minimum_increment:      5.00,
@@ -42,10 +44,27 @@ describe('Produce Auction Module – Validation Schemas Unit Tests', () => {
     it('rejects start_at after end_at', () => {
       const result = CreateAuctionSchema.safeParse({
         ...validAuctionData,
-        start_at: '2026-08-10T14:00:00.000Z',
-        end_at:   '2026-08-10T12:00:00.000Z',
+        start_at: hoursFromNow(30),
+        end_at:   hoursFromNow(28),
       });
       expect(result.success).toBe(false);
+    });
+
+    it('rejects a start date and time in the past', () => {
+      const result = CreateAuctionSchema.safeParse({ ...validAuctionData, start_at: hoursFromNow(-5), end_at: hoursFromNow(4) });
+      expect(result.success).toBe(false);
+      expect(JSON.stringify((result as any).error.errors)).toContain('Start date and time cannot be in the past');
+    });
+
+    it('rejects an end date and time in the past', () => {
+      const result = CreateAuctionSchema.safeParse({ ...validAuctionData, start_at: hoursFromNow(-10), end_at: hoursFromNow(-5) });
+      expect(result.success).toBe(false);
+      expect(JSON.stringify((result as any).error.errors)).toContain('cannot be in the past');
+    });
+
+    it('accepts an auction that starts right now (grace period)', () => {
+      const result = CreateAuctionSchema.safeParse({ ...validAuctionData, start_at: hoursFromNow(0), end_at: hoursFromNow(3) });
+      expect(result.success).toBe(true);
     });
 
     it('rejects reserve price lower than starting price', () => {

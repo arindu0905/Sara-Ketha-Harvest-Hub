@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi, authApi } from '../../services/api';
 import {
   Users, Search, Filter, Shield, CheckCircle, XCircle, Clock,
-  RefreshCw, Edit3, ChevronLeft, ChevronRight, Check, Plus, UserX, UserCheck
+  RefreshCw, Edit3, ChevronLeft, ChevronRight, Check, Plus, UserX, UserCheck, Trash2, AlertTriangle, ShieldCheck
 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -29,6 +29,7 @@ const ROLE_OPTIONS = [
   { value: 'inventory_manager', label: 'Inventory Manager' },
   { value: 'finance_officer', label: 'Finance Officer' },
   { value: 'transport_coordinator', label: 'Transport Coordinator' },
+  { value: 'manager', label: 'Manager (read-only reports)' },
   { value: 'administrator', label: 'Administrator' },
 ];
 
@@ -42,6 +43,7 @@ const STATUS_OPTIONS = [
 
 const ROLE_BADGE_STYLES: Record<string, string> = {
   administrator: 'bg-purple-100 text-purple-700 border-purple-200',
+  manager: 'bg-rose-100 text-rose-700 border-rose-200',
   finance_officer: 'bg-blue-100 text-blue-700 border-blue-200',
   inventory_manager: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   quality_inspector: 'bg-teal-100 text-teal-700 border-teal-200',
@@ -81,6 +83,7 @@ export const UserManagement: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [addUserForm, setAddUserForm] = useState(INITIAL_ADD_USER);
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
 
   const { data: usersResponse, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['admin-users', page, search, roleFilter, statusFilter],
@@ -92,6 +95,33 @@ export const UserManagement: React.FC = () => {
       status: statusFilter,
     }),
   });
+
+  // ─── Pending Farmer Verification ────────────────────────────────────────────
+  const [verifyNotes, setVerifyNotes] = useState('');
+  const [verifySearch, setVerifySearch] = useState('');
+
+  const { data: pendingFarmersRes, refetch: refetchPending } = useQuery({
+    queryKey: ['admin-pending-farmers', verifySearch],
+    queryFn: () => adminApi.getPendingFarmers({ search: verifySearch }),
+    refetchInterval: 30000, // auto-refresh every 30s
+  });
+
+  const pendingFarmers: any[] = pendingFarmersRes?.data?.data || [];
+  const pendingCount = pendingFarmersRes?.data?.meta?.total || pendingFarmers.length;
+
+  const verifyFarmerMutation = useMutation({
+    mutationFn: ({ farmerId, status, notes }: { farmerId: string; status: 'verified' | 'rejected'; notes?: string }) =>
+      adminApi.verifyFarmer(farmerId, { verification_status: status, notes }),
+    onSuccess: (_, vars) => {
+      toast.success(`Farmer account ${vars.status === 'verified' ? 'approved & verified' : 'rejected'} successfully.`);
+      queryClient.invalidateQueries({ queryKey: ['admin-pending-farmers'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to update farmer verification status');
+    },
+  });
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const users: UserProfile[] = usersResponse?.data?.data || [];
   const pagination = usersResponse?.data?.meta || { page: 1, limit: 10, total: 0, totalPages: 1 };
@@ -130,6 +160,21 @@ export const UserManagement: React.FC = () => {
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || 'Failed to create user');
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: string) => adminApi.deleteUser(id),
+    onSuccess: (res: any) => {
+      const body = res?.data;
+      if (body?.data?.deactivated) toast(body.message, { icon: 'ℹ️', duration: 7000 });
+      else toast.success(body?.message || 'User deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setUserToDelete(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to delete user — they may have associated records');
+      setUserToDelete(null);
     },
   });
 
@@ -197,6 +242,77 @@ export const UserManagement: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ─── Pending Farmer Verifications Panel ─────────────────────────────── */}
+      {pendingCount > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 bg-amber-100/60 border-b border-amber-200">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck size={20} className="text-amber-700" />
+              <h2 className="font-bold text-amber-900 text-sm">Pending Farmer Account Verifications</h2>
+              <span className="bg-amber-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">{pendingCount}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500" />
+                <input
+                  className="text-xs pl-8 pr-3 py-1.5 rounded-lg border border-amber-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-amber-400 w-44"
+                  placeholder="Search farmers..."
+                  value={verifySearch}
+                  onChange={e => setVerifySearch(e.target.value)}
+                />
+              </div>
+              <button onClick={() => refetchPending()} className="btn-ghost p-1.5 rounded-lg text-amber-700 hover:bg-amber-200">
+                <RefreshCw size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="divide-y divide-amber-100">
+            {pendingFarmers.length === 0 ? (
+              <div className="py-6 text-center text-amber-600 text-sm">No pending farmers match your search.</div>
+            ) : (
+              pendingFarmers.map((farmer: any) => (
+                <div key={farmer.id} className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-3.5 bg-white/50 hover:bg-white/80 transition-colors">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm flex-shrink-0">
+                      {farmer.full_name?.charAt(0)?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-surface-900 text-sm truncate">{farmer.full_name}</p>
+                      <p className="text-xs text-surface-500">{farmer.farmer_code} · {farmer.district} · {farmer.phone || farmer.email || '—'}</p>
+                      <p className="text-xs text-surface-400">Registered: {new Date(farmer.created_at).toLocaleDateString('en-LK', { dateStyle: 'medium' })}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <input
+                      type="text"
+                      placeholder="Notes (optional)"
+                      className="form-input text-xs py-1.5 w-40"
+                      onChange={e => setVerifyNotes(e.target.value)}
+                    />
+                    <button
+                      onClick={() => verifyFarmerMutation.mutate({ farmerId: farmer.id, status: 'verified', notes: verifyNotes || undefined })}
+                      disabled={verifyFarmerMutation.isPending}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      <CheckCircle size={13} /> Approve
+                    </button>
+                    <button
+                      onClick={() => verifyFarmerMutation.mutate({ farmerId: farmer.id, status: 'rejected', notes: verifyNotes || 'Rejected by administrator' })}
+                      disabled={verifyFarmerMutation.isPending}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      <XCircle size={13} /> Reject
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="card p-4 space-y-4 md:space-y-0 md:flex md:items-center md:justify-between gap-4">
@@ -321,10 +437,17 @@ export const UserManagement: React.FC = () => {
                           className={`p-1.5 rounded-lg border text-xs transition-colors ${
                             u.account_status === 'suspended'
                               ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                              : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
                           }`}
                         >
                           {u.account_status === 'suspended' ? <UserCheck size={14} /> : <UserX size={14} />}
+                        </button>
+                        <button
+                          onClick={() => setUserToDelete(u)}
+                          title="Delete User"
+                          className="p-1.5 rounded-lg border bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700 transition-colors"
+                        >
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
@@ -515,6 +638,60 @@ export const UserManagement: React.FC = () => {
                   <Check size={14} />
                 )}
                 {t('save')}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {/* ─── Delete Confirmation Modal ─────────────────────── */}
+      {userToDelete && (
+        <Modal
+          isOpen={!!userToDelete}
+          onClose={() => setUserToDelete(null)}
+          title="Delete User Account"
+          subtitle={`Permanently delete ${userToDelete.full_name}'s account`}
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+              <AlertTriangle size={20} className="text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-800 text-sm">This action is permanent and cannot be undone</p>
+                <p className="text-xs text-red-600 mt-1">Accounts with no activity are removed completely. If this user already has records (collections, payments, orders), the account is deactivated and blocked from signing in instead, so the records stay intact.</p>
+              </div>
+            </div>
+
+            <div className="bg-surface-50 rounded-xl p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 font-bold flex items-center justify-center text-sm shrink-0">
+                {userToDelete.full_name?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="font-semibold text-surface-900 text-sm">{userToDelete.full_name}</div>
+                <div className="text-xs text-surface-500">{userToDelete.email}</div>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border mt-1 ${ROLE_BADGE_STYLES[userToDelete.role] || 'bg-gray-100 text-gray-700'}`}>
+                  {formatRoleLabel(userToDelete.role)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-surface-100">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteUserMutation.mutate(userToDelete.id)}
+                disabled={deleteUserMutation.isPending}
+                className="btn flex items-center gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm"
+              >
+                {deleteUserMutation.isPending ? (
+                  <><RefreshCw size={14} className="animate-spin" /> Deleting...</>
+                ) : (
+                  <><Trash2 size={14} /> Delete User</>
+                )}
               </button>
             </div>
           </div>

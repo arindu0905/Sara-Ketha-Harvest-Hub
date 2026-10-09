@@ -69,42 +69,49 @@ router.get('/my-produce',
 // GET /api/auctions/admin/audit
 router.get('/admin/audit',
   authenticate,
-  requireRole('administrator'),
+  requireRole('administrator', 'inventory_manager'),
   auction.getAuctionAuditLogs
+);
+
+// GET /api/auctions/admin/all  (admin live monitor – queries auctions table directly)
+router.get('/admin/all',
+  authenticate,
+  requireRole('administrator', 'finance_officer', 'inventory_manager'),
+  auction.getAllAuctionsAdmin
 );
 
 // GET /api/auctions/admin/reports
 router.get('/admin/reports',
   authenticate,
-  requireRole('administrator', 'finance_officer'),
+  requireRole('administrator', 'finance_officer', 'inventory_manager'),
   auction.getAuctionReports
 );
 
 // GET /api/auctions/buyers/eligibility
 router.get('/buyers/eligibility',
   authenticate,
-  requireRole('administrator', 'finance_officer'),
+  requireRole('administrator', 'finance_officer', 'inventory_manager'),
   auction.getBuyerEligibility
 );
 
 // GET /api/auctions/disputes
 router.get('/disputes',
   authenticate,
-  requireRole('administrator', 'finance_officer'),
+  requireRole('administrator', 'finance_officer', 'inventory_manager'),
   auction.getAllDisputes
 );
 
 // PUT /api/auctions/buyers/:buyerId/credit-limit
 router.put('/buyers/:buyerId/credit-limit',
   authenticate,
-  requireRole('administrator', 'finance_officer'),
+  requireRole('administrator', 'finance_officer', 'inventory_manager'),
   auction.setCreditLimit
 );
 
 // GET /api/auctions/credit-limits
 router.get('/credit-limits',
   authenticate,
-  requireRole('administrator', 'finance_officer'),
+  requireRole('administrator', 'finance_officer', 'inventory_manager'),
   auction.getCreditLimits
 );
 
@@ -113,7 +120,7 @@ router.get('/credit-limits',
 // POST /api/auctions
 router.post('/',
   authenticate,
-  requireRole('inventory_manager', 'administrator'),
+  requireRole('inventory_manager', 'administrator', 'collection_centre_officer'),
   auction.createAuction
 );
 
@@ -125,7 +132,7 @@ router.get('/:id', authenticate, auction.getAuction);
 // PUT /api/auctions/:id
 router.put('/:id',
   authenticate,
-  requireRole('inventory_manager', 'administrator'),
+  requireRole('inventory_manager', 'administrator', 'collection_centre_officer'),
   auction.updateAuction
 );
 
@@ -167,21 +174,21 @@ router.post('/:id/submit',
 // POST /api/auctions/:id/approve
 router.post('/:id/approve',
   authenticate,
-  requireRole('administrator', 'collection_centre_officer'),
+  requireRole('administrator', 'collection_centre_officer', 'inventory_manager'),
   auction.approveAuction
 );
 
 // POST /api/auctions/:id/publish
 router.post('/:id/publish',
   authenticate,
-  requireRole('administrator', 'inventory_manager'),
+  requireRole('administrator', 'inventory_manager', 'collection_centre_officer'),
   auction.publishAuction
 );
 
 // POST /api/auctions/:id/open
 router.post('/:id/open',
   authenticate,
-  requireRole('administrator', 'inventory_manager'),
+  requireRole('administrator', 'inventory_manager', 'collection_centre_officer'),
   auction.openAuction
 );
 
@@ -224,7 +231,7 @@ router.post('/:id/disputes',
 // PATCH /api/auctions/:id/disputes/:disputeId
 router.patch('/:id/disputes/:disputeId',
   authenticate,
-  requireRole('administrator'),
+  requireRole('administrator', 'inventory_manager'),
   auction.resolveDispute
 );
 
@@ -233,22 +240,29 @@ router.patch('/:id/disputes/:disputeId',
 // POST /api/auctions/:id/lots
 router.post('/:id/lots',
   authenticate,
-  requireRole('inventory_manager', 'administrator'),
+  requireRole('inventory_manager', 'administrator', 'collection_centre_officer'),
   auction.createLot
 );
 
 // PUT /api/auctions/:id/lots/:lotId
 router.put('/:id/lots/:lotId',
   authenticate,
-  requireRole('inventory_manager', 'administrator'),
+  requireRole('inventory_manager', 'administrator', 'collection_centre_officer'),
   auction.updateLot
 );
 
 // DELETE /api/auctions/:id/lots/:lotId
 router.delete('/:id/lots/:lotId',
   authenticate,
-  requireRole('inventory_manager', 'administrator'),
+  requireRole('inventory_manager', 'administrator', 'collection_centre_officer'),
   auction.deleteLot
+);
+
+// PATCH /api/auctions/lots/:lotId/base-price
+router.patch('/lots/:lotId/base-price',
+  authenticate,
+  requireRole('farmer'),
+  auction.updateBasePrice
 );
 
 // ─── Bid placement ────────────────────────────────────────────────────────────
@@ -270,10 +284,17 @@ router.post('/:id/lots/:lotId/award',
   auction.awardLot
 );
 
-// POST /api/auctions/:id/lots/:lotId/offer-next
+// GET /api/auctions/:id/award-board
+router.get('/:id/award-board',
+  authenticate,
+  requireRole('administrator', 'inventory_manager', 'finance_officer'),
+  auction.getAwardBoard
+);
+
+// POST /api/auctions/:id/lots/:lotId/offer-next  (reject the current winning bid)
 router.post('/:id/lots/:lotId/offer-next',
   authenticate,
-  requireRole('administrator', 'finance_officer'),
+  requireRole('administrator', 'inventory_manager', 'finance_officer'),
   auction.offerToNextBidder
 );
 
@@ -286,14 +307,14 @@ router.get('/:id/lots/:lotId/invoice',
 // POST /api/auctions/:id/payment
 router.post('/:id/payment',
   authenticate,
-  requireRole('administrator', 'finance_officer'),
+  requireRole('administrator', 'finance_officer', 'inventory_manager'),
   auction.confirmPayment
 );
 
 // POST /api/auctions/:id/payment-default
 router.post('/:id/payment-default',
   authenticate,
-  requireRole('administrator', 'finance_officer'),
+  requireRole('administrator', 'finance_officer', 'inventory_manager'),
   auction.markPaymentDefault
 );
 
@@ -308,7 +329,7 @@ router.get('/settlements/:settlementId',
 // POST /api/auctions/settlements/calculate
 router.post('/settlements/calculate',
   authenticate,
-  requireRole('finance_officer', 'administrator'),
+  requireRole('finance_officer', 'administrator', 'inventory_manager'),
   auction.calculateSettlement
 );
 

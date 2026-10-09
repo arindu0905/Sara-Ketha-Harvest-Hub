@@ -126,6 +126,104 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* System-Wide Department Operations & Direct Portals */}
+      <div className="card p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-surface-900 flex items-center gap-2">
+            <span>🛡️</span> System-Wide Department Portals & Live Operations
+          </h2>
+          <p className="text-xs text-surface-500">
+            As Administrator, you have unrestricted global superuser access to operate and manage all processes across the platform.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+          {[
+            {
+              title: 'Collection Centre Hub',
+              desc: 'Farmer arrivals, weighing, and intake registry',
+              icon: '📦',
+              path: '/officer/dashboard',
+              badge: 'Intake & Weighing',
+              color: 'hover:border-primary-400',
+            },
+            {
+              title: 'Quality Inspection',
+              desc: 'Grading A/B/C, lab test checks, and rejection logs',
+              icon: '🔍',
+              path: '/inspector/dashboard',
+              badge: 'Quality Control',
+              color: 'hover:border-blue-400',
+            },
+            {
+              title: 'Warehouse & Inventory',
+              desc: 'Stock batches, transfers, near-expiry and spoilage',
+              icon: '🏬',
+              path: '/inventory/dashboard',
+              badge: 'Inventory Control',
+              color: 'hover:border-purple-400',
+            },
+            {
+              title: 'Buyer & Orders',
+              desc: 'Marketplace produce, purchase orders, and sales',
+              icon: '🛒',
+              path: '/buyer/dashboard',
+              badge: 'Commercial Sales',
+              color: 'hover:border-emerald-400',
+            },
+            {
+              title: 'Finance & Payouts',
+              desc: 'Farmer payment vouchers, deductions, and invoices',
+              icon: '💳',
+              path: '/finance/dashboard',
+              badge: 'Treasury & Billing',
+              color: 'hover:border-amber-400',
+            },
+            {
+              title: 'Transport & Fleet',
+              desc: 'Vehicles, registered drivers, and shipment dispatches',
+              icon: '🚚',
+              path: '/transport/dashboard',
+              badge: 'Logistics & Fleet',
+              color: 'hover:border-teal-400',
+            },
+            {
+              title: 'Farmer Operations',
+              desc: 'Registered farmer directory, crop records, and delivery slots',
+              icon: '🌾',
+              path: '/farmer/dashboard',
+              badge: 'Agronomy Hub',
+              color: 'hover:border-green-400',
+            },
+            {
+              title: 'Produce Auctions',
+              desc: 'Surplus lots, auction monitoring, and bidding',
+              icon: '⚖️',
+              path: '/admin/auction/approval',
+              badge: 'Live Marketplace',
+              color: 'hover:border-orange-400',
+            },
+          ].map(p => (
+            <a
+              key={p.path}
+              href={p.path}
+              className={`border border-surface-200 rounded-2xl p-4 transition-all bg-surface-50/50 hover:bg-white hover:shadow-md group ${p.color}`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl">{p.icon}</span>
+                <span className="text-2xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-100">
+                  {p.badge}
+                </span>
+              </div>
+              <h3 className="text-sm font-bold text-surface-900 group-hover:text-primary-600 transition-colors">
+                {p.title}
+              </h3>
+              <p className="text-xs text-surface-500 mt-1 leading-relaxed">{p.desc}</p>
+            </a>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

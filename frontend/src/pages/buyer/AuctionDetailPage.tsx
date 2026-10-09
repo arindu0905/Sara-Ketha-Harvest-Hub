@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
@@ -31,7 +32,9 @@ function LotBidPanel({ lot, auctionId, minIncrement, isOpen, paymentDeadlineHour
 }) {
   const { user } = useAuth();
   const { mutate: placeBid, isPending } = usePlaceBid(auctionId, lot.id);
-  const minBid = lot.current_price_per_unit + minIncrement;
+  // The first bid only has to reach the starting price; later bids must beat the current price by the increment.
+  const hasBids = Number(lot.current_price_per_unit) > Number(lot.starting_price_per_unit);
+  const minBid = hasBids ? Number(lot.current_price_per_unit) + Number(minIncrement) : Number(lot.current_price_per_unit);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<BidForm>({
     resolver:     zodResolver(BidSchema),
@@ -45,7 +48,15 @@ function LotBidPanel({ lot, auctionId, minIncrement, isOpen, paymentDeadlineHour
     placeBid(data);
   };
 
-  if (!user || user.role !== 'buyer') {
+  if (user && user.role !== 'buyer') {
+    return (
+      <div className="bg-surface-50 border border-surface-200 rounded-xl p-4 text-center">
+        <p className="text-sm text-surface-600 font-medium">You are watching this auction live. Only buyers can place bids.</p>
+      </div>
+    );
+  }
+
+  if (!user) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
         <p className="text-sm text-amber-800 font-medium">Login as a verified buyer to place bids</p>
@@ -140,6 +151,12 @@ export function AuctionDetailPage() {
   const isOpen    = auction?.status === 'open';
   const isWatched = watchlist.some((w) => w.auction_id === id);
   const [expandedLot, setExpandedLot] = useState<string | null>(null);
+  const firstOpenLot = (auction?.auction_lots ?? []).find((l: any) => l.lot_status === 'open')?.id ?? null;
+  // Open the first biddable lot by default so the bid form is visible straight away.
+  const autoExpanded = React.useRef(false);
+  React.useEffect(() => {
+    if (!autoExpanded.current && isOpen && firstOpenLot) { setExpandedLot(firstOpenLot); autoExpanded.current = true; }
+  }, [isOpen, firstOpenLot]);
 
   if (isLoading) {
     return (

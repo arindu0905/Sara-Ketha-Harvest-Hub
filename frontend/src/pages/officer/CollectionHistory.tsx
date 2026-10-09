@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
+import { DoneBy } from '../../components/ui/DoneBy';
+import { one } from '../../utils/relations';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { collectionsApi } from '../../services/api';
+import toast from 'react-hot-toast';
+import { apiErrorMessage } from '../../utils/apiError';
+import { printCollectionReceipt } from '../../components/receipts/CollectionReceiptCard';
 import { Package, Scale, ChevronRight } from 'lucide-react';
 
 export const CollectionHistory: React.FC = () => {
@@ -51,7 +56,7 @@ export const CollectionHistory: React.FC = () => {
           <div className="card overflow-hidden">
             <div className="table-container">
               <table className="table">
-                <thead><tr><th>Collection No</th><th>Farmer</th><th>Crop</th><th>Net Weight</th><th>Status</th><th>Date</th><th></th></tr></thead>
+                <thead><tr><th>Collection No</th><th>Farmer</th><th>Crop</th><th>Net Weight</th><th>Batch No</th><th>Receipt</th><th>Done by</th><th>Status</th><th>Date</th><th></th></tr></thead>
                 <tbody>
                   {collections.map((c: any) => (
                     <tr key={c.id}>
@@ -59,10 +64,20 @@ export const CollectionHistory: React.FC = () => {
                       <td>{c.farmers?.full_name}<br /><span className="text-xs text-surface-400">{c.farmers?.farmer_code}</span></td>
                       <td>{c.crop_categories?.name || '—'}</td>
                       <td>{c.net_weight_kg ? `${c.net_weight_kg} kg` : '—'}</td>
+                      <td className="font-mono text-xs">{([] as any[]).concat(c.inventory_batches ?? [])[0]?.batch_no ?? '—'}</td>
+                      <td className="font-mono text-xs">{([] as any[]).concat(c.collection_receipts ?? [])[0]?.receipt_no ?? '—'}</td>
+                      <td><DoneBy items={[['Registered', c.officer, c.created_at], ['Inspected', one(c.quality_inspections)?.inspector, one(c.quality_inspections)?.approved_at]]} /></td>
                       <td>{statusBadge(c.status)}</td>
                       <td className="text-xs text-surface-500">{new Date(c.created_at).toLocaleDateString('en-LK')}</td>
                       <td>
-                        {c.status === 'arrived' && <Link to={`/officer/collections/${c.id}/weigh`} className="btn-secondary btn-sm"><Scale size={12} /> Weigh</Link>}
+                        {!!one(c.quality_inspections) && <Link to={`/officer/inspection-report/${c.id}`} className="btn-ghost btn-sm text-primary-700">Report</Link>}
+                        {!!one(c.quality_inspections) && <button className="btn-ghost btn-sm" onClick={async () => { try { printCollectionReceipt((await collectionsApi.getReceipt(c.id)).data.data); } catch { try { printCollectionReceipt((await collectionsApi.issueReceipt(c.id)).data.data); } catch (e) { toast.error(apiErrorMessage(e)); } } }}>Receipt</button>}
+                        {c.status === 'arrived' && <Link to={`/officer/collection/${c.id}/weigh`} className="btn-secondary btn-sm"><Scale size={12} /> Weigh</Link>}
+                        {['pending_inspection', 'weighed'].includes(c.status) && (
+                          <Link to={`/officer/inspections/create/${c.id}`} className="btn-primary btn-sm flex items-center gap-1">
+                            Inspect <ChevronRight size={12} />
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   ))}

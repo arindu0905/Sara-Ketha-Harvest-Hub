@@ -3,7 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { farmerPaymentsApi } from '../../services/api';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCategoryForLanguage } from '../../utils/categoryUtils';
-import { DollarSign, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { DollarSign, CheckCircle, Clock, Receipt } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { apiErrorMessage } from '../../utils/apiError';
+import { printPayoutReceipt } from '../finance/ApprovePayments';
 
 export const MyPayments: React.FC = () => {
   const { t, language, formatDate } = useLanguage();
@@ -14,15 +17,19 @@ export const MyPayments: React.FC = () => {
   });
 
   const payments = paymentsRes?.data?.data || [];
+  const showReceipt = async (id: string) => {
+    try { printPayoutReceipt((await farmerPaymentsApi.getReceipt(id)).data.data); }
+    catch (e) { toast.error(apiErrorMessage(e, 'Receipt not available yet')); }
+  };
   const totalPaid = payments.filter((p: any) => p.status === 'paid').reduce((s: number, p: any) => s + (p.net_amount_lkr || 0), 0);
   const totalPending = payments.filter((p: any) => p.status !== 'paid').reduce((s: number, p: any) => s + (p.net_amount_lkr || 0), 0);
 
   const statusBadge = (status: string) => {
     switch (status) {
       case 'paid': return <span className="badge-success"><CheckCircle size={12} /> {t('paid_amount')}</span>;
-      case 'approved': return <span className="badge-info">{t('active')}</span>;
-      case 'calculated': return <span className="badge-warning"><Clock size={12} /> {t('pending')}</span>;
-      default: return <span className="badge-neutral">{status}</span>;
+      case 'approved': return <span className="badge-info">Approved – payout soon</span>;
+      case 'calculated': return <span className="badge-warning"><Clock size={12} /> Awaiting approval</span>;
+      default: return <span className="badge-neutral">{String(status).replace(/_/g, ' ')}</span>;
     }
   };
 
@@ -88,6 +95,7 @@ export const MyPayments: React.FC = () => {
                   <th>{t('paid_amount') || 'Net Amount'}</th>
                   <th>{t('status')}</th>
                   <th>{t('effective_date') || 'Date'}</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -100,6 +108,7 @@ export const MyPayments: React.FC = () => {
                     <td className="font-bold text-primary-700">LKR {p.net_amount_lkr?.toLocaleString('en-LK')}</td>
                     <td>{statusBadge(p.status)}</td>
                     <td className="text-xs text-surface-500">{formatDate(p.created_at)}</td>
+                    <td>{p.status === 'paid' && <button className="btn-ghost btn-sm flex items-center gap-1" onClick={() => showReceipt(p.id)}><Receipt size={14} /> {t('receipts')}</button>}</td>
                   </tr>
                 ))}
               </tbody>

@@ -100,6 +100,9 @@ export const auctionApi = {
     apiClient.post(`/auctions/${auctionId}/lots/${lotId}/bids`, data),
 
   // Award
+  getAwardBoard: (auctionId: string) =>
+    apiClient.get(`/auctions/${auctionId}/award-board`),
+
   awardLot: (auctionId: string, lotId: string) =>
     apiClient.post(`/auctions/${auctionId}/lots/${lotId}/award`),
 

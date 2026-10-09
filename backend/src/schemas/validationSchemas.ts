@@ -8,14 +8,17 @@ export const registerSchema = z.object({
       .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
       .regex(/[0-9]/, 'Password must contain at least one number'),
     full_name: z.string().min(2, 'Full name must be at least 2 characters').max(100),
-    role: z.enum([
-      'farmer', 'collection_centre_officer', 'quality_inspector',
-      'inventory_manager', 'buyer', 'finance_officer',
-      'transport_coordinator', 'administrator'
-    ]).optional().default('farmer'),
-    phone: z.string().optional(),
+    // Public self-registration is limited to farmers and buyers (E1-US1, E3-US5).
+    // Staff accounts (officer, inspector, inventory, finance, transport, manager, admin) are created by an administrator.
+    role: z.enum(['farmer', 'buyer']).optional().default('farmer'),
+    phone: z.string().regex(/^0\d{9}$/, 'Phone must be exactly 10 digits and start with 0 (e.g. 0771234567)').optional().or(z.literal('')),
   }),
 });
+
+export const USER_ROLES = [
+  'farmer', 'collection_centre_officer', 'quality_inspector', 'inventory_manager', 'buyer',
+  'finance_officer', 'transport_coordinator', 'manager', 'administrator',
+] as const;
 
 export const loginSchema = z.object({
   body: z.object({
@@ -39,12 +42,26 @@ export const resetPasswordSchema = z.object({
   }),
 });
 
+// Sri Lankan validation helpers
+const sriLankaPhone = z
+  .string()
+  .regex(/^0\d{9}$/, 'Phone must be exactly 10 digits and start with 0 (e.g. 0771234567)');
+
+const sriLankaNIC = z
+  .string()
+  .regex(
+    /^(\d{9}[VvXx]|\d{12})$/,
+    'NIC must be old format (9 digits + V or X, e.g. 781234567V) or new format (12 digits, e.g. 198012345678)'
+  );
+
+const bankAccount = z.string().regex(/^[0-9]{6,20}$/, 'Account number must be 6 to 20 digits');
+
 export const farmerSchema = z.object({
   body: z.object({
-    nic_number: z.string().min(9).max(12, 'Invalid NIC format'),
+    nic_number: sriLankaNIC,
     full_name: z.string().min(2).max(100),
-    email: z.string().email().optional(),
-    phone: z.string().min(10, 'Invalid phone number'),
+    email: z.string().email().optional().or(z.literal('')),
+    phone: sriLankaPhone,
     address: z.string().min(5),
     district: z.string().min(2),
     divisional_secretariat: z.string().optional(),
@@ -54,27 +71,108 @@ export const farmerSchema = z.object({
     bank_name: z.string().optional(),
     bank_branch: z.string().optional(),
     account_holder_name: z.string().optional(),
-    account_number: z.string().optional(),
+    account_number: bankAccount.optional().or(z.literal('')),
     emergency_contact_name: z.string().optional(),
-    emergency_contact_phone: z.string().optional(),
+    emergency_contact_phone: sriLankaPhone.optional().or(z.literal('')),
     assigned_centre_id: z.string().uuid().optional(),
     notes: z.string().optional(),
   }),
 });
 
+/**
+ * Used for PUT/PATCH farmer profile updates — all fields optional with strict Sri Lankan formats.
+ */
+const dropEmptyStrings = (v: unknown) =>
+  v && typeof v === 'object' ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== '')) : v;
+
+export const farmerUpdateSchema = z.object({
+  body: z.preprocess(dropEmptyStrings, z.object({
+    nic_number: sriLankaNIC.optional().nullable(),
+    full_name: z.string().min(1).max(100).optional().nullable(),
+    email: z.string().email().optional().or(z.literal('')).nullable(),
+    phone: sriLankaPhone.optional().nullable(),
+    address: z.string().min(1).optional().nullable(),
+    district: z.string().min(1).optional().nullable(),
+    divisional_secretariat: z.string().optional().nullable(),
+    farm_name: z.string().optional().nullable(),
+    farm_location: z.string().optional().nullable(),
+    farm_size_acres: z.union([z.number().positive(), z.string().transform(v => parseFloat(v) || null)]).optional().nullable(),
+    bank_name: z.string().optional().nullable(),
+    bank_branch: z.string().optional().nullable(),
+    account_holder_name: z.string().optional().nullable(),
+    account_number: bankAccount.optional().or(z.literal('')).nullable(),
+    account_number_masked: z.string().optional().nullable(),
+    emergency_contact_name: z.string().optional().nullable(),
+    emergency_contact_phone: sriLankaPhone.optional().or(z.literal('')).nullable(),
+    assigned_centre_id: z.string().uuid().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  })),
+});
+
+/** Today's date in Sri Lanka (YYYY-MM-DD), so the rule does not shift with the server's time zone. */
+export const todayInSriLanka = (): string => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Crop calendar rules: dates must be real YYYY-MM-DD dates, the planting date cannot be in the past
+ * (checked on create only – an existing crop may legitimately have been planted earlier) and the expected
+ * harvest cannot be before planting or in the past.
+ */
+const cropDateRules = (b: { planting_date?: string | null; expected_harvest_date?: string | null }, ctx: z.RefinementCtx, isCreate: boolean) => {
+  const today = todayInSriLanka();
+  for (const key of ['planting_date', 'expected_harvest_date'] as const) {
+    const v = b[key];
+    if (v === undefined || v === null || v === '') continue;
+    if (!ISO_DATE.test(v) || Number.isNaN(Date.parse(v))) {
+      ctx.addIssue({ code: 'custom', path: [key], message: 'Date must be a valid date (YYYY-MM-DD)' });
+    }
+  }
+  if (isCreate && b.planting_date && ISO_DATE.test(b.planting_date) && b.planting_date < today) {
+    ctx.addIssue({ code: 'custom', path: ['planting_date'], message: 'Planting date cannot be in the past' });
+  }
+  if (b.expected_harvest_date && ISO_DATE.test(b.expected_harvest_date)) {
+    if (b.expected_harvest_date < today) {
+      ctx.addIssue({ code: 'custom', path: ['expected_harvest_date'], message: 'Expected harvest date cannot be in the past' });
+    }
+    if (b.planting_date && ISO_DATE.test(b.planting_date) && b.expected_harvest_date < b.planting_date) {
+      ctx.addIssue({ code: 'custom', path: ['expected_harvest_date'], message: 'Expected harvest date cannot be before the planting date' });
+    }
+  }
+};
+
 export const cropSchema = z.object({
   body: z.object({
     farmer_id: z.string().uuid(),
     category_id: z.string().uuid(),
-    variety_id: z.string().uuid().optional(),
-    cultivated_area_acres: z.number().positive().optional(),
-    planting_date: z.string().optional(),
-    expected_harvest_date: z.string().optional(),
-    expected_quantity_kg: z.number().positive().optional(),
+    variety_id: z.string().uuid().nullish(),
+    cultivated_area_acres: z.number().positive().nullish(),
+    planting_date: z.string().nullish(),
+    expected_harvest_date: z.string().nullish(),
+    expected_quantity_kg: z.number().positive().nullish(),
     farming_method: z.enum(['organic', 'conventional', 'hydroponic', 'mixed']).default('conventional'),
-    certification_status: z.string().optional(),
-    notes: z.string().optional(),
-  }),
+    certification_status: z.string().nullish(),
+    notes: z.string().nullish(),
+  }).superRefine((b, ctx) => cropDateRules(b, ctx, true)),
+});
+
+/**
+ * Used for PUT crop updates — farmer_id and category_id are optional.
+ */
+export const cropUpdateSchema = z.object({
+  body: z.object({
+    farmer_id: z.string().uuid().optional(),
+    category_id: z.string().uuid().optional(),
+    variety_id: z.string().uuid().nullish(),
+    cultivated_area_acres: z.number().positive().nullish(),
+    planting_date: z.string().nullish(),
+    expected_harvest_date: z.string().nullish(),
+    expected_quantity_kg: z.number().positive().nullish(),
+    farming_method: z.enum(['organic', 'conventional', 'hydroponic', 'mixed']).optional(),
+    certification_status: z.string().nullish(),
+    notes: z.string().nullish(),
+    is_active: z.boolean().optional(),
+  }).superRefine((b, ctx) => cropDateRules(b, ctx, false)),
 });
 
 export const collectionSchema = z.object({

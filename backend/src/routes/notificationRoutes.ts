@@ -11,8 +11,8 @@ router.use(authenticate);
 router.get('/', async (req: any, res, next) => {
   try {
     const { page = '1', limit = '20', unread_only } = req.query as Record<string, string>;
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabaseAdmin
@@ -28,10 +28,14 @@ router.get('/', async (req: any, res, next) => {
 
     if (error) throw new AppError(error.message, 500);
 
+    const { count: unreadTotal } = await supabaseAdmin
+      .from('notifications').select('id', { count: 'exact', head: true })
+      .eq('recipient_id', req.user.id).eq('is_read', false);
+
     res.json({
       success: true, data: data || [],
       meta: { page: pageNum, limit: limitNum, total: count || 0,
-        unread_count: (data || []).filter(n => !n.is_read).length }
+        unread_count: unreadTotal || 0 }
     });
   } catch (e) { next(e); }
 });

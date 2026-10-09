@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { roleBasePath } from '../utils/roleBase';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Package, ShoppingCart, DollarSign,
   Truck, BarChart3, Settings, Bell, LogOut, Menu, Calendar,
   Leaf, ClipboardList, CheckSquare, Warehouse, FileText, MessageSquare,
-  User, Scale, Search, Shield, Building2, Gavel, Star, TrendingUp
+  User, Scale, Search, Shield, Building2, Gavel, Star, TrendingUp, Wifi, Clock, Trash2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -33,7 +34,8 @@ const getNavItems = (role: Role): NavItem[] => {
         { key: 'appointments', label: 'Appointments', path: '/farmer/appointments', icon: <ClipboardList size={18} /> },
         { key: 'collections', label: 'Collections', path: '/farmer/collections', icon: <Package size={18} /> },
         { key: 'payments', label: 'Payments', path: '/farmer/payments', icon: <DollarSign size={18} /> },
-        { key: 'produce_auctions', label: 'Produce Auctions', path: '/farmer/auction/my-produce', icon: <Gavel size={18} /> },
+        { key: 'live_auctions', label: 'Live Auctions', path: '/farmer/auction/live', icon: <Gavel size={18} /> },
+        { key: 'produce_auctions', label: 'My Produce Auctions', path: '/farmer/auction/my-produce', icon: <TrendingUp size={18} /> },
         { key: 'complaints', label: 'Complaints', path: '/farmer/complaints', icon: <MessageSquare size={18} /> },
       ];
     case 'collection_centre_officer':
@@ -41,51 +43,80 @@ const getNavItems = (role: Role): NavItem[] => {
         { key: 'dashboard', label: 'Dashboard', path: '/officer/dashboard', icon: <LayoutDashboard size={18} /> },
         { key: 'users', label: 'Farmer Directory', path: '/officer/farmers', icon: <Users size={18} /> },
         { key: 'appointments', label: 'Appointments', path: '/officer/appointments', icon: <Calendar size={18} /> },
-        { key: 'collections', label: 'Register Collection', path: '/officer/collections/register', icon: <Package size={18} /> },
+        { key: 'collections', label: 'Collections History', path: '/officer/collections', icon: <ClipboardList size={18} /> },
+        { key: 'register_collection', label: 'Register Collection', path: '/officer/collections/register', icon: <Package size={18} /> },
+        { key: 'collection_centres', label: 'Collection Centres', path: '/officer/centres', icon: <Building2 size={18} /> },
+        { key: 'start_live_auction', label: 'Start Live Auction', path: '/officer/auctions/create-live', icon: <Gavel size={18} /> },
+        { key: 'live_auctions', label: 'View Live Auctions', path: '/officer/auctions/live', icon: <TrendingUp size={18} /> },
       ];
     case 'quality_inspector':
       return [
         { key: 'dashboard', label: 'Dashboard', path: '/inspector/dashboard', icon: <LayoutDashboard size={18} /> },
         { key: 'appointments', label: 'Pending Inspections', path: '/inspector/pending', icon: <ClipboardList size={18} /> },
         { key: 'reports', label: 'Inspection History', path: '/inspector/history', icon: <CheckSquare size={18} /> },
+        { key: 'quality_analytics', label: 'Quality Analytics', path: '/inspector/analytics', icon: <BarChart3 size={18} /> },
+        { key: 'start_live_auction', label: 'Start Live Auction', path: '/inspector/auctions/create-live', icon: <Gavel size={18} /> },
+        { key: 'live_auctions', label: 'View Live Auctions', path: '/inspector/auctions/live', icon: <TrendingUp size={18} /> },
       ];
     case 'inventory_manager':
       return [
         { key: 'dashboard', label: 'Dashboard', path: '/inventory/dashboard', icon: <LayoutDashboard size={18} /> },
         { key: 'collections', label: 'Current Inventory', path: '/inventory/current', icon: <Package size={18} /> },
+        { key: 'near_expiry', label: 'Near-Expiry Stock', path: '/inventory/near-expiry', icon: <Clock size={18} /> },
+        { key: 'wastage', label: 'Wastage Records', path: '/inventory/wastage', icon: <Trash2 size={18} /> },
+        { key: 'orders', label: 'Order Management', path: '/inventory/orders', icon: <ClipboardList size={18} /> },
         { key: 'collection_centres', label: 'Warehouses', path: '/inventory/warehouses', icon: <Warehouse size={18} /> },
         { key: 'auctions', label: 'Auction Dashboard', path: '/inventory/auction/dashboard', icon: <Gavel size={18} /> },
+        { key: 'live_auction_monitor', label: 'Live Auction Monitor', path: '/inventory/auction/monitor', icon: <TrendingUp size={18} /> },
+        { key: 'auction_reports', label: 'Auction Reports', path: '/inventory/auction/reports', icon: <BarChart3 size={18} /> },
       ];
     case 'buyer':
       return [
         { key: 'dashboard', label: 'Dashboard', path: '/buyer/dashboard', icon: <LayoutDashboard size={18} /> },
-        { key: 'crop_categories', label: 'Marketplace', path: '/buyer/marketplace', icon: <ShoppingCart size={18} /> },
-        { key: 'collections', label: 'My Orders', path: '/buyer/orders', icon: <ClipboardList size={18} /> },
+        { key: 'marketplace', label: 'Marketplace', path: '/buyer/marketplace', icon: <ShoppingCart size={18} /> },
+        { key: 'my_orders', label: 'My Orders', path: '/buyer/orders', icon: <ClipboardList size={18} /> },
+        { key: 'invoices', label: 'My Invoices', path: '/buyer/invoices', icon: <FileText size={18} /> },
         { key: 'auctions', label: 'Auction Marketplace', path: '/buyer/auction', icon: <Gavel size={18} /> },
-        { key: 'complaints', label: 'Complaints', path: '/buyer/complaints', icon: <MessageSquare size={18} /> },
       ];
     case 'finance_officer':
       return [
         { key: 'dashboard', label: 'Dashboard', path: '/finance/dashboard', icon: <LayoutDashboard size={18} /> },
         { key: 'payments', label: 'Pending Payments', path: '/finance/payments/pending', icon: <DollarSign size={18} /> },
+        { key: 'approve_disburse_payments', label: 'Approve & Disburse Payments', path: '/finance/approve', icon: <CheckSquare size={18} /> },
+        { key: 'payment_history', label: 'Payment History', path: '/finance/history', icon: <ClipboardList size={18} /> },
+        { key: 'farmer_invoices', label: 'Farmer Invoices', path: '/finance/farmer-invoices', icon: <FileText size={18} /> },
+        { key: 'buyer_invoices', label: 'Buyer Invoices', path: '/finance/invoices', icon: <FileText size={18} /> },
+        { key: 'outstanding_payments', label: 'Outstanding Payments', path: '/finance/outstanding', icon: <DollarSign size={18} /> },
         { key: 'reports', label: 'Reports', path: '/finance/reports', icon: <BarChart3 size={18} /> },
+        { key: 'management_reports', label: 'Management Reports', path: '/finance/management-reports', icon: <TrendingUp size={18} /> },
       ];
     case 'transport_coordinator':
       return [
         { key: 'dashboard', label: 'Dashboard', path: '/transport/dashboard', icon: <LayoutDashboard size={18} /> },
         { key: 'schedule_delivery', label: 'Delivery Schedule', path: '/transport/schedule', icon: <Calendar size={18} /> },
-        { key: 'collections', label: 'Active Deliveries', path: '/transport/active', icon: <Truck size={18} /> },
+        { key: 'active_deliveries', label: 'Active Shipments', path: '/transport/active', icon: <Truck size={18} /> },
+        { key: 'fleet_vehicles', label: 'Fleet & Drivers', path: '/transport/vehicles', icon: <Warehouse size={18} /> },
+      ];
+    case 'manager':
+      return [
+        { key: 'dashboard', label: 'Management Dashboard', path: '/manager/dashboard', icon: <LayoutDashboard size={18} /> },
+        { key: 'management_reports', label: 'Management Reports', path: '/manager/management-reports', icon: <TrendingUp size={18} /> },
+        { key: 'outstanding_payments', label: 'Outstanding Payments', path: '/manager/outstanding', icon: <DollarSign size={18} /> },
+        { key: 'orders', label: 'Orders', path: '/manager/orders', icon: <ClipboardList size={18} /> },
       ];
     case 'administrator':
       return [
         { key: 'dashboard', label: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={18} /> },
         { key: 'users', label: 'User Management', path: '/admin/users', icon: <Users size={18} /> },
+        { key: 'orders', label: 'Order Management', path: '/admin/orders', icon: <ClipboardList size={18} /> },
         { key: 'crop_categories', label: 'Crop Categories', path: '/admin/categories', icon: <Leaf size={18} /> },
         { key: 'price_management', label: 'Price Management', path: '/admin/prices', icon: <DollarSign size={18} /> },
         { key: 'collection_centres', label: 'Collection Centres', path: '/admin/centres', icon: <Building2 size={18} /> },
         { key: 'audit_logs', label: 'Audit Logs', path: '/admin/audit-logs', icon: <Shield size={18} /> },
         { key: 'reports', label: 'Reports', path: '/admin/reports', icon: <BarChart3 size={18} /> },
+        { key: 'management_reports', label: 'Management Reports', path: '/admin/management-reports', icon: <TrendingUp size={18} /> },
         { key: 'auctions', label: 'Auction Approval', path: '/admin/auction/approval', icon: <Gavel size={18} /> },
+        { key: 'auction_monitor', label: 'Live Auction Monitor', path: '/admin/auction/monitor', icon: <Wifi size={18} /> },
         { key: 'settings', label: 'Settings', path: '/admin/settings', icon: <Settings size={18} /> },
       ];
     default:
@@ -129,8 +160,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ role }) => {
       )}
       <div className={`relative flex flex-col h-full ${mobile ? 'w-64 bg-white' : 'w-full'} z-10`}>
         {/* Logo with Sara Ketha Harvest Hub title */}
-        <div className="flex items-center gap-3 p-4 border-b border-surface-100 h-16">
-          <div className="w-9 h-9 bg-primary-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-3 p-4 border-b border-surface-100 h-16" style={{ background: 'linear-gradient(135deg, rgba(5,150,105,0.08) 0%, rgba(13,148,136,0.08) 100%)' }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #059669 0%, #0d9488 100%)' }}>
             <span className="text-lg">🌾</span>
           </div>
           {(sidebarOpen || mobile) && (
@@ -149,6 +180,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ role }) => {
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.path === '/officer/collections' || item.path.endsWith('/collections')}
               className={({ isActive }) =>
                 `sidebar-link ${isActive ? 'active' : ''}`
               }
@@ -165,7 +197,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ role }) => {
         {/* Notifications link */}
         <div className="p-3 border-t border-surface-100">
           <NavLink
-            to={`/${role === 'collection_centre_officer' ? 'officer' : role === 'quality_inspector' ? 'inspector' : role === 'inventory_manager' ? 'inventory' : role === 'transport_coordinator' ? 'transport' : role}/notifications`}
+            to={`${roleBasePath(role)}/notifications`}
             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
           >
             <div className="relative flex-shrink-0">
@@ -194,7 +226,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ role }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Navigation Bar */}
-        <header className="h-16 bg-white border-b border-surface-100 flex items-center justify-between px-4 gap-4 flex-shrink-0 shadow-sm">
+        <header className="h-16 bg-white border-b border-surface-100 flex items-center justify-between px-4 gap-4 flex-shrink-0" style={{ borderImage: 'linear-gradient(90deg, #059669, #0d9488) 1', borderBottomWidth: '1.5px' }}>
           <div className="flex items-center gap-3">
             {/* Mobile menu toggle */}
             <button
@@ -228,7 +260,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ role }) => {
             {/* Notifications */}
             <button
               className="relative btn-ghost p-2 rounded-xl"
-              onClick={() => navigate(`/${role === 'collection_centre_officer' ? 'officer' : role === 'quality_inspector' ? 'inspector' : role === 'inventory_manager' ? 'inventory' : role === 'transport_coordinator' ? 'transport' : role}/notifications`)}
+              onClick={() => navigate(`${roleBasePath(role)}/notifications`)}
               aria-label="Notifications"
             >
               <Bell size={20} />

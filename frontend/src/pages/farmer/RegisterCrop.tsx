@@ -10,6 +10,12 @@ import toast from 'react-hot-toast';
 
 import { formatCategoryName } from '../../utils/categoryUtils';
 
+/** Local calendar date as YYYY-MM-DD (the browser's clock is the farmer's local time). */
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const cropSchema = z.object({
   category_id: z.string().min(1, 'Select a crop category'),
   variety_id: z.string().optional(),
@@ -19,6 +25,17 @@ const cropSchema = z.object({
   expected_quantity_kg: z.string().optional(),
   farming_method: z.enum(['organic', 'conventional', 'hydroponic', 'mixed']),
   notes: z.string().optional(),
+}).superRefine((d, ctx) => {
+  const today = todayStr();
+  if (d.planting_date && d.planting_date < today) {
+    ctx.addIssue({ code: 'custom', path: ['planting_date'], message: 'Planting date cannot be in the past' });
+  }
+  if (d.expected_harvest_date && d.expected_harvest_date < today) {
+    ctx.addIssue({ code: 'custom', path: ['expected_harvest_date'], message: 'Expected harvest date cannot be in the past' });
+  }
+  if (d.planting_date && d.expected_harvest_date && d.expected_harvest_date < d.planting_date) {
+    ctx.addIssue({ code: 'custom', path: ['expected_harvest_date'], message: 'Expected harvest date cannot be before the planting date' });
+  }
 });
 
 type CropForm = z.infer<typeof cropSchema>;
@@ -47,6 +64,7 @@ export const RegisterCrop: React.FC = () => {
   });
 
   const selectedCategory = watch('category_id');
+  const plantingDate = watch('planting_date');
   const varieties = categories.find((c: any) => c.id === selectedCategory)?.crop_varieties?.filter((v: any) => v.is_active) || [];
 
   const mutation = useMutation({
@@ -55,7 +73,7 @@ export const RegisterCrop: React.FC = () => {
       toast.success('Crop registered successfully!');
       navigate('/farmer/crops');
     },
-    onError: () => toast.error('Failed to register crop'),
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to register crop'),
   });
 
   const onSubmit = (data: CropForm) => {
@@ -133,11 +151,13 @@ export const RegisterCrop: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="form-label">Planting Date</label>
-                <input type="date" className="form-input" {...register('planting_date')} />
+                <input type="date" min={todayStr()} className={`form-input ${errors.planting_date ? 'form-input-error' : ''}`} {...register('planting_date')} />
+                {errors.planting_date && <p className="form-error"><AlertCircle size={12} />{errors.planting_date.message}</p>}
               </div>
               <div>
                 <label className="form-label">Expected Harvest Date</label>
-                <input type="date" className="form-input" {...register('expected_harvest_date')} />
+                <input type="date" min={plantingDate || todayStr()} className={`form-input ${errors.expected_harvest_date ? 'form-input-error' : ''}`} {...register('expected_harvest_date')} />
+                {errors.expected_harvest_date && <p className="form-error"><AlertCircle size={12} />{errors.expected_harvest_date.message}</p>}
               </div>
             </div>
 

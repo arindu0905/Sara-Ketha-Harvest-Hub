@@ -75,13 +75,13 @@ export function WonAuctionsPage() {
                   </div>
                   <div className="flex gap-2">
                     <Link
-                      to={`/auction/${w.auction_id}/lots/${w.auction_lot_id}/invoice`}
+                      to={`/buyer/auction/${w.auction_id}`}
                       className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:border-emerald-400 hover:text-emerald-700 transition-all"
                     >
-                      <FileText size={13} /> Invoice
+                      <FileText size={13} /> View Auction
                     </Link>
                     <Link
-                      to={`/auction/${w.auction_id}/pay?winner=${w.id}`}
+                      to={`/buyer/auction/${w.auction_id}/pay?winner=${w.id}`}
                       className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl text-xs font-bold hover:from-emerald-700 hover:to-green-700 transition-all shadow-sm"
                     >
                       Pay Now →
@@ -128,7 +128,7 @@ export function WonAuctionsPage() {
         <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
           <Package size={32} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500">You haven't won any auctions yet.</p>
-          <Link to="/auction" className="mt-3 inline-block text-sm text-emerald-600 font-medium hover:underline">
+          <Link to="/buyer/auction" className="mt-3 inline-block text-sm text-emerald-600 font-medium hover:underline">
             Browse live auctions →
           </Link>
         </div>

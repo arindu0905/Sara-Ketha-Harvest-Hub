@@ -1,7 +1,7 @@
 {
   "trainedAt": "2026-08-13T15:19:44.779Z",
   "algorithm": "RandomForest (Java Weka Architecture)",
-  "accuracy": "100.00%",
+  "accuracy": "n/a - trained on synthetic rule-derived data; not a valid performance estimate",
   "districts": [
     "Ampara",
     "Anuradhapura",

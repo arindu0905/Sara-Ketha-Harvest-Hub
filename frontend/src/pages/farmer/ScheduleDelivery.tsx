@@ -4,8 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { farmersApi, cropsApi, appointmentsApi } from '../../services/api';
-import { adminApi } from '../../services/api';
+import { farmersApi, cropsApi, appointmentsApi, centresApi } from '../../services/api';
 import { AlertCircle, Loader2, ArrowLeft, CalendarDays } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatCategoryName } from '../../utils/categoryUtils';
@@ -39,7 +38,7 @@ export const ScheduleDelivery: React.FC = () => {
 
   const { data: centresRes } = useQuery({
     queryKey: ['centres'],
-    queryFn: () => adminApi.getCentres(),
+    queryFn: () => centresApi.getAll(),
   });
 
   const categories = categoriesRes?.data?.data || [];
@@ -58,7 +57,7 @@ export const ScheduleDelivery: React.FC = () => {
       toast.success('Delivery scheduled successfully!');
       navigate('/farmer/appointments');
     },
-    onError: () => toast.error('Failed to schedule delivery'),
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to schedule delivery'),
   });
 
   const onSubmit = (data: DeliveryForm) => {
@@ -72,7 +71,7 @@ export const ScheduleDelivery: React.FC = () => {
       category_id: data.category_id,
       variety_id: data.variety_id || null,
       scheduled_date: data.scheduled_date,
-      estimated_quantity_kg: parseFloat(data.estimated_quantity_kg),
+      estimated_qty_kg: parseFloat(data.estimated_quantity_kg),  // ← DB column name
       notes: data.notes || null,
     });
   };

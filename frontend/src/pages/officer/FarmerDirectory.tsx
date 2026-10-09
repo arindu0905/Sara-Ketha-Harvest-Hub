@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DoneBy } from '../../components/ui/DoneBy';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { farmersApi } from '../../services/api';
@@ -76,6 +77,7 @@ export const FarmerDirectory: React.FC = () => {
                     <th>Phone</th>
                     <th>Crops</th>
                     <th>Verification</th>
+                    <th>Verified by</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -95,6 +97,7 @@ export const FarmerDirectory: React.FC = () => {
                       <td className="text-sm">{f.phone || '—'}</td>
                       <td className="text-center">{f.farmer_crops?.[0]?.count ?? 0}</td>
                       <td>{verBadge(f.verification_status)}</td>
+                      <td><DoneBy items={[[null, f.verifier, f.verified_at]]} /></td>
                       <td>
                         <Link to={`/officer/farmers/${f.id}/verify`} className="btn-ghost p-1 rounded-lg text-xs">
                           <ChevronRight size={16} />

@@ -16,7 +16,9 @@ const ROLE_DASHBOARDS: Record<string, string> = {
   buyer: '/buyer/dashboard',
   finance_officer: '/finance/dashboard',
   transport_coordinator: '/transport/dashboard',
+  manager: '/manager/dashboard',
   administrator: '/admin/dashboard',
+  admin: '/admin/dashboard',
 };
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({

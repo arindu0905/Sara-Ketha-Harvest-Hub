@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { AuthShell } from '../../components/auth/AuthShell';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -22,6 +23,7 @@ const ROLE_DASHBOARDS: Record<string, string> = {
   buyer: '/buyer/dashboard',
   finance_officer: '/finance/dashboard',
   transport_coordinator: '/transport/dashboard',
+  manager: '/manager/dashboard',
   administrator: '/admin/dashboard',
 };
 
@@ -64,23 +66,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-950 via-primary-900 to-surface-900 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-3 group">
-            <div className="w-12 h-12 bg-primary-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-primary-400 transition-colors">
-              <span className="text-2xl">🌾</span>
-            </div>
-            <div className="text-left">
-              <p className="text-xl font-bold text-white font-display">HarvestHub</p>
-              <p className="text-xs text-primary-400">Collection Centre Management</p>
-            </div>
-          </Link>
-        </div>
-
-        {/* Form Card */}
-        <div className="glass rounded-3xl shadow-modal p-8">
+    <AuthShell>
           <h1 className="text-2xl font-bold text-surface-900 font-display mb-1">Welcome back</h1>
           <p className="text-surface-500 text-sm mb-6">Sign in to your HarvestHub account</p>
 
@@ -98,7 +84,6 @@ export const LoginPage: React.FC = () => {
                 id="email"
                 type="email"
                 autoComplete="email"
-                placeholder="you@example.com"
                 className={`form-input ${errors.email ? 'form-input-error' : ''}`}
                 {...register('email')}
               />
@@ -119,7 +104,6 @@ export const LoginPage: React.FC = () => {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
-                  placeholder="••••••••"
                   className={`form-input pr-10 ${errors.password ? 'form-input-error' : ''}`}
                   {...register('password')}
                 />
@@ -156,18 +140,6 @@ export const LoginPage: React.FC = () => {
               Create one
             </Link>
           </p>
-        </div>
-
-        {/* Demo credentials */}
-        <div className="mt-4 glass rounded-2xl p-4 text-xs text-surface-600">
-          <p className="font-semibold text-surface-700 mb-2">🔑 Demo Accounts (after seed data):</p>
-          <div className="space-y-1 font-mono">
-            <p>Admin: admin@harvesthub.lk / Admin@123456</p>
-            <p>Farmer: farmer@harvesthub.lk / Farmer@123456</p>
-            <p>Buyer: buyer@harvesthub.lk / Buyer@123456</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </AuthShell>
   );
 };

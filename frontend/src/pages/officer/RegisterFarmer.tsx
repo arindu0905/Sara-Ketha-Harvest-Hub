@@ -4,15 +4,15 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { farmersApi, adminApi } from '../../services/api';
+import { farmersApi, centresApi } from '../../services/api';
 import { AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const farmerSchema = z.object({
-  nic_number: z.string().min(9, 'Valid NIC required'),
+  nic_number: z.string().regex(/^(\d{9}[VvXx]|\d{12})$/, 'NIC must be 9 digits + V/X (e.g. 781234567V) or 12 digits'),
   full_name: z.string().min(2, 'Full name required'),
-  phone: z.string().min(9, 'Valid phone required'),
-  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().regex(/^0\d{9}$/, 'Phone must be 10 digits starting with 0 (e.g. 0771234567)'),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
   address: z.string().min(5, 'Address required'),
   district: z.string().min(2, 'District required'),
   divisional_secretariat: z.string().optional(),
@@ -36,7 +36,7 @@ export const RegisterFarmer: React.FC = () => {
 
   const { data: centresRes } = useQuery({
     queryKey: ['centres'],
-    queryFn: () => adminApi.getCentres(),
+    queryFn: () => centresApi.getAll(),
   });
   const centres = centresRes?.data?.data || [];
 

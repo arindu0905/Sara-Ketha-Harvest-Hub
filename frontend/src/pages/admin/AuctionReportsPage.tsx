@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { currentRoleBase } from '../../utils/roleBase';
 import { useAuctionReports, useAuctionDisputes, useBuyerEligibility, useSetCreditLimit, useAuctionAuditLogs } from '../../hooks/useAuction';
 import { formatLKR, formatLKRCompact, formatDateTimeSL } from '../../utils/lkrFormat';
 import { ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -267,9 +268,14 @@ export function AuctionReportsPage() {
   const [tab, setTab] = useState('reports');
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Auction Administration</h1>
-        <p className="text-gray-500 text-sm mt-1">Reports, disputes, credit limits, and audit logs for the auction module.</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Auction Administration</h1>
+          <p className="text-gray-500 text-sm mt-1">Reports, disputes, credit limits, and audit logs for the auction module.</p>
+        </div>
+        <a href={`${currentRoleBase()}/auction/create`} className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition-colors">
+          + Add Auction
+        </a>
       </div>
 
       {/* Tabs */}

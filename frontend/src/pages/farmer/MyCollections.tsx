@@ -1,4 +1,5 @@
 import React from 'react';
+import { one } from '../../utils/relations';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { farmersApi, collectionsApi } from '../../services/api';
@@ -77,7 +78,7 @@ export const MyCollections: React.FC = () => {
               </thead>
               <tbody>
                 {collections.map((c: any) => {
-                  const inspection = c.quality_inspections?.[0];
+                  const inspection = one(c.quality_inspections);
                   return (
                     <tr key={c.id}>
                       <td className="font-semibold text-surface-900">{c.collection_no}</td>

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { AuthShell } from '../../components/auth/AuthShell';
 
 const registerSchema = z.object({
   full_name: z.string().min(2, 'Full name must be at least 2 characters'),
@@ -13,9 +14,10 @@ const registerSchema = z.object({
   password: z.string()
     .min(8, 'Must be at least 8 characters')
     .regex(/[A-Z]/, 'Must contain uppercase letter')
+    .regex(/[a-z]/, 'Must contain lowercase letter')
     .regex(/[0-9]/, 'Must contain a number'),
   confirmPassword: z.string(),
-  role: z.enum(['farmer', 'buyer', 'collection_centre_officer', 'quality_inspector', 'inventory_manager', 'finance_officer', 'transport_coordinator']),
+  role: z.enum(['farmer', 'buyer']),
 }).refine(d => d.password === d.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],
@@ -40,7 +42,11 @@ export const RegisterPage: React.FC = () => {
     setError('');
     try {
       await authRegister({ email: data.email, password: data.password, full_name: data.full_name, role: data.role });
-      toast.success('Account created! Please sign in.');
+      if (data.role === 'farmer') {
+        toast.success('Registration submitted! Your farmer account requires verification by a Collection Officer before logging in.', { duration: 6000 });
+      } else {
+        toast.success('Account created! Please sign in.');
+      }
       navigate('/login');
     } catch (err: any) {
       const rawMessage = err?.response?.data?.message;
@@ -56,18 +62,7 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-950 via-primary-900 to-surface-900 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-3">
-            <div className="w-12 h-12 bg-primary-500 rounded-2xl flex items-center justify-center shadow-lg">
-              <span className="text-2xl">🌾</span>
-            </div>
-            <span className="text-xl font-bold text-white font-display">HarvestHub</span>
-          </Link>
-        </div>
-
-        <div className="glass rounded-3xl shadow-modal p-8">
+    <AuthShell wide>
           <h1 className="text-2xl font-bold text-surface-900 font-display mb-1">Create Account</h1>
           <p className="text-surface-500 text-sm mb-6">Join HarvestHub today</p>
 
@@ -80,13 +75,13 @@ export const RegisterPage: React.FC = () => {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label className="form-label">Full Name</label>
-              <input type="text" placeholder="Kamal Perera" className={`form-input ${errors.full_name ? 'form-input-error' : ''}`} {...register('full_name')} />
+              <input type="text" className={`form-input ${errors.full_name ? 'form-input-error' : ''}`} {...register('full_name')} />
               {errors.full_name && <p className="form-error"><AlertCircle size={12} />{errors.full_name.message}</p>}
             </div>
 
             <div>
               <label className="form-label">Email Address</label>
-              <input type="email" placeholder="kamal@example.com" className={`form-input ${errors.email ? 'form-input-error' : ''}`} {...register('email')} />
+              <input type="email" className={`form-input ${errors.email ? 'form-input-error' : ''}`} {...register('email')} />
               {errors.email && <p className="form-error"><AlertCircle size={12} />{errors.email.message}</p>}
             </div>
 
@@ -95,28 +90,24 @@ export const RegisterPage: React.FC = () => {
               <select className="form-select" {...register('role')}>
                 <option value="farmer">Farmer</option>
                 <option value="buyer">Buyer</option>
-                <option value="collection_centre_officer">Collection Centre Officer</option>
-                <option value="quality_inspector">Quality Inspector</option>
-                <option value="inventory_manager">Inventory Manager</option>
-                <option value="finance_officer">Finance Officer</option>
-                <option value="transport_coordinator">Transport Coordinator</option>
               </select>
             </div>
 
             <div>
               <label className="form-label">Password</label>
               <div className="relative">
-                <input type={showPassword ? 'text' : 'password'} placeholder="Min 8 chars, 1 uppercase, 1 number" className={`form-input pr-10 ${errors.password ? 'form-input-error' : ''}`} {...register('password')} />
+                <input type={showPassword ? 'text' : 'password'} className={`form-input pr-10 ${errors.password ? 'form-input-error' : ''}`} {...register('password')} />
                 <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              <p className="text-xs text-surface-400 mt-1">At least 8 characters with an uppercase letter, a lowercase letter and a number</p>
               {errors.password && <p className="form-error"><AlertCircle size={12} />{errors.password.message}</p>}
             </div>
 
             <div>
               <label className="form-label">Confirm Password</label>
-              <input type="password" placeholder="Repeat password" className={`form-input ${errors.confirmPassword ? 'form-input-error' : ''}`} {...register('confirmPassword')} />
+              <input type="password" className={`form-input ${errors.confirmPassword ? 'form-input-error' : ''}`} {...register('confirmPassword')} />
               {errors.confirmPassword && <p className="form-error"><AlertCircle size={12} />{errors.confirmPassword.message}</p>}
             </div>
 
@@ -129,8 +120,6 @@ export const RegisterPage: React.FC = () => {
             Already have an account?{' '}
             <Link to="/login" className="text-primary-600 font-semibold hover:text-primary-700">Sign in</Link>
           </p>
-        </div>
-      </div>
-    </div>
+    </AuthShell>
   );
 };

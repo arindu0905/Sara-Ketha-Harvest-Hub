@@ -31,6 +31,13 @@ export const OfficerDashboard: React.FC = () => {
   const todayAppointments = appointmentsRes?.data?.data?.length ?? 0;
   const recentCollections = collectionsRes?.data?.data || [];
 
+  // Upcoming scheduled appointments (next 7 days)
+  const { data: upcomingRes } = useQuery({
+    queryKey: ['officer-upcoming-appointments'],
+    queryFn: () => appointmentsApi.getAll({ status: 'scheduled' }),
+  });
+  const upcomingAppointments = (upcomingRes?.data?.data || []).slice(0, 5);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
@@ -62,6 +69,7 @@ export const OfficerDashboard: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Collections */}
         <div className="card">
           <div className="card-header">
             <h2 className="text-sm font-semibold text-surface-800">Recent Collections</h2>
@@ -92,23 +100,63 @@ export const OfficerDashboard: React.FC = () => {
           )}
         </div>
 
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold text-surface-800 mb-3">Quick Actions</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Register Farmer', icon: '👤', path: '/officer/farmers/register' },
-              { label: 'Register Collection', icon: '📦', path: '/officer/collections/register' },
-              { label: 'Farmer Directory', icon: '📋', path: '/officer/farmers' },
-              { label: 'Appointments', icon: '📅', path: '/officer/appointments' },
-            ].map(a => (
-              <Link key={a.path} to={a.path} className="flex flex-col items-center gap-2 p-4 bg-surface-50 rounded-xl hover:bg-primary-50 hover:text-primary-700 transition-colors text-center">
-                <span className="text-2xl">{a.icon}</span>
-                <span className="text-xs font-medium text-surface-700">{a.label}</span>
-              </Link>
-            ))}
+        {/* Upcoming Appointments */}
+        <div className="card">
+          <div className="card-header">
+            <h2 className="text-sm font-semibold text-surface-800 flex items-center gap-2">
+              <Calendar size={14} className="text-primary-600" />
+              Upcoming Deliveries
+            </h2>
+            <Link to="/officer/appointments" className="text-xs text-primary-600 flex items-center gap-1 hover:text-primary-700">View all <ChevronRight size={14} /></Link>
           </div>
+          {upcomingAppointments.length === 0 ? (
+            <div className="empty-state py-8">
+              <Calendar className="w-8 h-8 text-surface-300 mb-2" />
+              <p className="text-surface-400 text-sm">No scheduled appointments</p>
+              <p className="text-surface-400 text-xs mt-1">Farmers can book from their dashboard</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-surface-50">
+              {upcomingAppointments.map((a: any) => (
+                <div key={a.id} className="flex items-center justify-between p-4 hover:bg-surface-50 transition-colors">
+                  <div>
+                    <p className="text-sm font-semibold text-surface-800">{a.farmers?.full_name || '—'}</p>
+                    <p className="text-xs text-surface-500">
+                      {a.crop_categories?.name}
+                      {a.estimated_qty_kg ? ` · ${Number(a.estimated_qty_kg).toLocaleString()} kg` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-surface-700">
+                      {new Date(a.scheduled_date).toLocaleDateString('en-LK', { day: 'numeric', month: 'short' })}
+                    </p>
+                    <span className="badge-info text-xs">Scheduled</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="card p-5">
+        <h2 className="text-sm font-semibold text-surface-800 mb-3">Quick Actions</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Register Farmer', icon: '👤', path: '/officer/farmers/register' },
+            { label: 'Register Collection', icon: '📦', path: '/officer/collections/register' },
+            { label: 'Farmer Directory', icon: '📋', path: '/officer/farmers' },
+            { label: 'Appointments', icon: '📅', path: '/officer/appointments' },
+          ].map(a => (
+            <Link key={a.path} to={a.path} className="flex flex-col items-center gap-2 p-4 bg-surface-50 rounded-xl hover:bg-primary-50 hover:text-primary-700 transition-colors text-center">
+              <span className="text-2xl">{a.icon}</span>
+              <span className="text-xs font-medium text-surface-700">{a.label}</span>
+            </Link>
+          ))}
         </div>
       </div>
     </div>
   );
 };
+
