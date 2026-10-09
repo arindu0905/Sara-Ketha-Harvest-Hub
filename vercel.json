@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npm run build --workspace frontend",
+  "installCommand": "cd frontend && npm install --no-package-lock",
+  "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
