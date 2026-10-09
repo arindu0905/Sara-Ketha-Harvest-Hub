@@ -112,6 +112,7 @@ const getNavItems = (role: Role): NavItem[] => {
         { key: 'crop_categories', label: 'Crop Categories', path: '/admin/categories', icon: <Leaf size={18} /> },
         { key: 'price_management', label: 'Price Management', path: '/admin/prices', icon: <DollarSign size={18} /> },
         { key: 'collection_centres', label: 'Collection Centres', path: '/admin/centres', icon: <Building2 size={18} /> },
+        { key: 'complaints', label: 'Complaints', path: '/admin/complaints', icon: <MessageSquare size={18} /> },
         { key: 'audit_logs', label: 'Audit Logs', path: '/admin/audit-logs', icon: <Shield size={18} /> },
         { key: 'reports', label: 'Reports', path: '/admin/reports', icon: <BarChart3 size={18} /> },
         { key: 'management_reports', label: 'Management Reports', path: '/admin/management-reports', icon: <TrendingUp size={18} /> },

@@ -91,6 +91,7 @@ import { CategoryProductsPage } from './pages/admin/CategoryProductsPage';
 import { PriceManagement } from './pages/admin/PriceManagement';
 import { CollectionCentres } from './pages/admin/CollectionCentres';
 import { AuditLogs } from './pages/admin/AuditLogs';
+import { ComplaintManagement } from './pages/admin/ComplaintManagement';
 import { SystemSettings } from './pages/admin/SystemSettings';
 import { AdminReports } from './pages/admin/AdminReports';
 import { ManagementReports } from './pages/admin/ManagementReports';
@@ -323,6 +324,7 @@ function App() {
               <Route path="prices" element={<PriceManagement />} />
               <Route path="centres" element={<CollectionCentres />} />
               <Route path="audit-logs" element={<AuditLogs />} />
+              <Route path="complaints" element={<ComplaintManagement />} />
               <Route path="settings" element={<SystemSettings />} />
               <Route path="reports" element={<AdminReports />} />
               <Route path="management-reports" element={<ManagementReports />} />

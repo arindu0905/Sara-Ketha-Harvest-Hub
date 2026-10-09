@@ -103,6 +103,7 @@ router.patch('/:id/status', requireRole(...STAFF), async (req: any, res, next) =
     const updates: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     if (resolution) updates.resolution = String(resolution).slice(0, 4000);
     if (assigned_to) updates.assigned_to = assigned_to;
+    else updates.assigned_to = req.user.id; // whoever works on the complaint is recorded as its handler
     if (status === 'resolved') updates.resolved_at = new Date().toISOString();
 
     const { data, error } = await supabaseAdmin
