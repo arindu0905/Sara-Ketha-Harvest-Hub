@@ -36,7 +36,7 @@ export function useAuctionCountdown(
     const sync = async () => {
       try {
         const clientBefore = Date.now();
-        const resp          = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:4000'}/health`);
+        const resp          = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/health`);
         const json          = await resp.json();
         const clientAfter   = Date.now();
         const rtt           = clientAfter - clientBefore;

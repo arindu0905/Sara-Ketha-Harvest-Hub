@@ -48,7 +48,9 @@ app.use(cors({
       return callback(null, true);
     }
     // In production, only allow configured frontend URL
-    if (origin === config.frontendUrl) {
+    // FRONTEND_URL may hold several comma-separated origins; a trailing slash is ignored
+    const allowed = config.frontendUrl.split(',').map((u) => u.trim().replace(/\/$/, ''));
+    if (allowed.includes(origin.replace(/\/$/, ''))) {
       return callback(null, true);
     }
     callback(new Error(`CORS: Origin ${origin} not allowed`));
