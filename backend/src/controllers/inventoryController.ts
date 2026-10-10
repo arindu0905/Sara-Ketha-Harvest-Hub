@@ -4,6 +4,7 @@ import { sendSuccess, paginatedResponse } from '../utils/response';
 import { AppError } from '../utils/AppError';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { rpcToAppError } from '../utils/rpcError';
+import { todayInSriLanka, daysBetween, addDays } from '../utils/dates';
 
 const WASTE_REASONS = ['spoilage', 'damage', 'expiry', 'pest_disease', 'handling', 'temperature', 'other'];
 
@@ -13,7 +14,6 @@ async function getNumberSetting(key: string, fallback: number): Promise<number> 
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-const isoDate = (d: Date) => d.toISOString().split('T')[0];
 
 /**
  * GET /api/inventory
@@ -55,9 +55,9 @@ export const getInventory = async (req: Request, res: Response, next: NextFuncti
     if (search) query = query.ilike('batch_no', `%${search.replace(/[%,]/g, '')}%`);
     if (near_expiry === 'true') {
       const days = await getNumberSetting('near_expiry_days', 7);
-      const threshold = new Date(); threshold.setDate(threshold.getDate() + days);
-      query = query.lte('expected_expiry_date', isoDate(threshold))
-        .gte('expected_expiry_date', isoDate(new Date()))
+      const todayStr = todayInSriLanka();
+      query = query.lte('expected_expiry_date', addDays(todayStr, days))
+        .gte('expected_expiry_date', todayStr)
         .gt('available_qty_kg', 0);
     }
 
@@ -183,8 +183,7 @@ export const listWastage = async (req: Request, res: Response, next: NextFunctio
 export const getExpiryOverview = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const days = await getNumberSetting('near_expiry_days', 7);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const horizon = new Date(today); horizon.setDate(horizon.getDate() + days);
+    const todayStr = todayInSriLanka();
 
     const { data, error } = await supabaseAdmin
       .from('inventory_batches')
@@ -194,13 +193,13 @@ export const getExpiryOverview = async (_req: Request, res: Response, next: Next
       `)
       .gt('available_qty_kg', 0)
       .not('expected_expiry_date', 'is', null)
-      .lte('expected_expiry_date', isoDate(horizon))
+      .lte('expected_expiry_date', addDays(todayStr, days))
       .not('status', 'in', '("disposed","damaged","sold")')
       .order('expected_expiry_date', { ascending: true });
     if (error) throw new AppError(error.message, 500);
 
     const items = (data || []).map((b: any) => {
-      const daysLeft = Math.ceil((new Date(b.expected_expiry_date).getTime() - today.getTime()) / 86400000);
+      const daysLeft = daysBetween(todayStr, b.expected_expiry_date);
       const risk = daysLeft < 0 ? 'expired' : daysLeft <= 2 ? 'critical' : daysLeft <= Math.ceil(days / 2) ? 'high' : 'medium';
       return { ...b, days_left: daysLeft, risk, value_at_risk_lkr: Math.round(Number(b.available_qty_kg) * Number(b.purchase_price_lkr) * 100) / 100 };
     });
@@ -284,7 +283,7 @@ export const getInventorySummary = async (_req: Request, res: Response, next: Ne
       .in('status', ['available', 'reserved', 'partially_sold']);
     if (error) throw new AppError(error.message, 500);
 
-    const today = isoDate(new Date());
+    const today = todayInSriLanka();
     (batches || []).forEach((b: any) => {
       const row = summaryMap[b.category_id];
       if (!row) return;
