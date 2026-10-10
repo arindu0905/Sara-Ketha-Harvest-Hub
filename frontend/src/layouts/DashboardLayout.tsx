@@ -62,11 +62,11 @@ const getNavItems = (role: Role): NavItem[] => {
     case 'inventory_manager':
       return [
         { key: 'dashboard', label: 'Dashboard', path: '/inventory/dashboard', icon: <LayoutDashboard size={18} /> },
-        { key: 'collections', label: 'Current Inventory', path: '/inventory/current', icon: <Package size={18} /> },
+        { key: 'current_inventory', label: 'Current Inventory', path: '/inventory/current', icon: <Package size={18} /> },
         { key: 'near_expiry', label: 'Near-Expiry Stock', path: '/inventory/near-expiry', icon: <Clock size={18} /> },
         { key: 'wastage', label: 'Wastage Records', path: '/inventory/wastage', icon: <Trash2 size={18} /> },
         { key: 'orders', label: 'Order Management', path: '/inventory/orders', icon: <ClipboardList size={18} /> },
-        { key: 'collection_centres', label: 'Warehouses', path: '/inventory/warehouses', icon: <Warehouse size={18} /> },
+        { key: 'warehouses', label: 'Warehouses', path: '/inventory/warehouses', icon: <Warehouse size={18} /> },
         { key: 'auctions', label: 'Auction Dashboard', path: '/inventory/auction/dashboard', icon: <Gavel size={18} /> },
         { key: 'live_auction_monitor', label: 'Live Auction Monitor', path: '/inventory/auction/monitor', icon: <TrendingUp size={18} /> },
         { key: 'auction_reports', label: 'Auction Reports', path: '/inventory/auction/reports', icon: <BarChart3 size={18} /> },
@@ -193,7 +193,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ role }) => {
             >
               <span className="flex-shrink-0">{item.icon}</span>
               {(sidebarOpen || mobile) && (
-                <span className="truncate">{t(item.key) || item.label}</span>
+                <span className="truncate">{t(item.key) === item.key ? item.label : t(item.key)}</span>
               )}
             </NavLink>
           ))}
