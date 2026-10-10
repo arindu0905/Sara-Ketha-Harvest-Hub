@@ -10,7 +10,8 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "seed:images": "ts-node --transpile-only src/scripts/seedProductImages.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
