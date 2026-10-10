@@ -2,6 +2,10 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
+/** Turns a stored image path such as /api/product-images/<id> into a full URL on the API server. */
+export const imageSrc = (url?: string | null): string | undefined =>
+  !url ? undefined : url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
+
 export const apiClient = axios.create({
   baseURL: `${API_BASE_URL}/api`,
   timeout: 30000,

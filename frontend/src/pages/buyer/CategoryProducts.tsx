@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { inventoryApi } from '../../services/api';
 import { ArrowLeft, ShoppingCart, Package, ImageOff } from 'lucide-react';
 import { formatLKR } from '../../utils/lkrFormat';
+import { imageSrc } from '../../services/apiClient';
 
 const gradeLabel = (g: string) => g.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 
@@ -60,7 +61,7 @@ export const CategoryProducts: React.FC = () => {
               <div key={p.id || p.name} className="card overflow-hidden flex flex-col border border-surface-200/80">
                 <div className="h-44 bg-surface-100 flex items-center justify-center overflow-hidden">
                   {p.image_url
-                    ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
+                    ? <img src={imageSrc(p.image_url)} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
                     : <ImageOff className="w-10 h-10 text-surface-300" />}
                 </div>
                 <div className="p-5 flex-1 flex flex-col">

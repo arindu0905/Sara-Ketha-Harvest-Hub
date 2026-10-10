@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import { serveProductImage } from './controllers/cropController';
 import { syncAuctionStatuses } from './services/auctionScheduler';
 import morgan from 'morgan';
 import compression from 'compression';
@@ -125,6 +126,9 @@ app.get('/api/cron/auctions', async (req, res, next) => {
     res.json({ success: true, ranAt: new Date().toISOString() });
   } catch (e) { next(e); }
 });
+
+// product photos are public (plain <img> tags cannot send a login token) and come straight from the database
+app.get('/api/product-images/:id', serveProductImage);
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/farmers', farmerRoutes);

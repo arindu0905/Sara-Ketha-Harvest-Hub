@@ -22,6 +22,7 @@ import { Modal } from '../../components/ui/Modal';
 import { formatCategoryName, getCategoryEnglish, getCategorySinhala, getCategoryTamil } from '../../utils/categoryUtils';
 import { useLanguage } from '../../contexts/LanguageContext';
 import toast from 'react-hot-toast';
+import { imageSrc } from '../../services/apiClient';
 
 interface CropVariety {
   id: string;
@@ -411,7 +412,7 @@ export const CategoryProductsPage: React.FC = () => {
             >
               <div className="relative -mx-5 -mt-5 mb-4 h-36 bg-surface-100 overflow-hidden rounded-t-2xl group">
                 {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+                  <img src={imageSrc(product.image_url)} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center text-surface-400 text-xs gap-1">
                     <ImagePlus size={22} /> No photo yet
