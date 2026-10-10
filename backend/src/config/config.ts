@@ -3,7 +3,7 @@ dotenv.config();
 
 export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
-  nodeEnv: process.env.NODE_ENV || (process.env.VERCEL ? 'production' : 'development'),
+  nodeEnv: (process.env.NODE_ENV || (process.env.VERCEL ? 'production' : 'development')).trim().toLowerCase(),
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 
   supabase: {
