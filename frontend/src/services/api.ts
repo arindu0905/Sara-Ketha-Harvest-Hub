@@ -238,6 +238,9 @@ export const inventoryApi = {
   getExpiry: () =>
     apiClient.get('/inventory/expiry'),
 
+  getExpiryRecords: (params?: Record<string, string>) =>
+    apiClient.get('/inventory/expiry/records', { params }),
+
   runExpirySweep: () =>
     apiClient.post('/inventory/expiry/sweep'),
 

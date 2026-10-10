@@ -44,3 +44,6 @@ ml-service/*.jar
 .cache/
 coverage/
 *.tgz
+
+# Exported copy of real database data (contains personal details) - never commit
+docs/database-readable/

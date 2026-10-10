@@ -217,6 +217,33 @@ export const getExpiryOverview = async (_req: Request, res: Response, next: Next
 };
 
 /**
+ * GET /api/inventory/expiry/records
+ * The separate near-expiry register (table near_expiry_stock): every batch that is or was at risk, with how it ended.
+ * Query: status = at_risk | expired | resolved (optional)
+ */
+export const listNearExpiryRecords = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    // re-check every batch so days-left / risk are current (ignored if the migration has not been run yet)
+    await supabaseAdmin.rpc('refresh_near_expiry_stock');
+    const { status } = req.query as Record<string, string>;
+    let query = supabaseAdmin
+      .from('near_expiry_stock')
+      .select(`*, crop_categories!category_id(name), farmers!farmer_id(full_name), warehouses!warehouse_id(name)`)
+      .order('status', { ascending: true })
+      .order('expiry_date', { ascending: true });
+    if (status) query = query.eq('status', status);
+    const { data, error } = await query;
+    if (error) {
+      if (/near_expiry_stock|schema cache/i.test(error.message)) {
+        throw new AppError('The near-expiry register is not set up yet. Run RUN_7_near_expiry_stock.sql in the Supabase SQL editor.', 503);
+      }
+      throw new AppError(error.message, 500);
+    }
+    sendSuccess(res, { data: data || [] });
+  } catch (e) { next(e); }
+};
+
+/**
  * POST /api/inventory/expiry/sweep
  * Writes off past-expiry stock, releases stale unpaid reservations, alerts managers.
  */

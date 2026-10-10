@@ -35,6 +35,15 @@ export const NearExpiryStock: React.FC = () => {
   const items: any[] = res?.data?.data?.items || [];
   const summary = res?.data?.data?.summary;
 
+  // the separate near-expiry register (table near_expiry_stock) – includes resolved history
+  const [regStatus, setRegStatus] = useState('');
+  const { data: regRes, isLoading: regLoading, error: regError } = useQuery({
+    queryKey: ['inventory-expiry-records', regStatus],
+    queryFn: () => inventoryApi.getExpiryRecords(regStatus ? { status: regStatus } : undefined),
+    retry: false,
+  });
+  const records: any[] = regRes?.data?.data || [];
+
   // every batch with stock, so any batch can be flagged as near-expiry
   const { data: allRes } = useQuery({
     queryKey: ['inventory-list', 'flaggable'],
@@ -43,7 +52,7 @@ export const NearExpiryStock: React.FC = () => {
   });
   const allBatches: any[] = allRes?.data?.data || [];
 
-  const refresh = () => ['inventory-expiry', 'inventory-summary', 'inventory-list', 'inventory-wastage'].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
+  const refresh = () => ['inventory-expiry', 'inventory-expiry-records', 'inventory-summary', 'inventory-list', 'inventory-wastage'].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
   const close = () => { setAction(null); setPickBatchId(''); setDate(''); setReason(''); setQty(''); setDiscount('20'); setWasteReason('expiry'); };
 
   const sweep = useMutation({
@@ -159,6 +168,45 @@ export const NearExpiryStock: React.FC = () => {
           })}</tbody>
         </table></div></div>
       )}
+
+      {/* Near-expiry register: separate table with history */}
+      <div className="card overflow-hidden">
+        <div className="p-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-100">
+          <div>
+            <h2 className="text-base font-bold text-surface-900">Near-expiry register</h2>
+            <p className="text-xs text-surface-500">Every batch that has been close to expiry, with how it ended (sold, extended, written off)</p>
+          </div>
+          <select className="form-select w-auto" value={regStatus} onChange={e => setRegStatus(e.target.value)}>
+            <option value="">All</option>
+            <option value="at_risk">At risk</option>
+            <option value="expired">Expired</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+        {regLoading ? <div className="p-6"><div className="skeleton h-14 rounded-xl" /></div> : regError ? (
+          <p className="p-6 text-sm text-amber-700">{apiErrorMessage(regError)}</p>
+        ) : records.length === 0 ? (
+          <p className="p-6 text-sm text-surface-400">No records yet.</p>
+        ) : (
+          <div className="table-container"><table className="table">
+            <thead><tr><th>Batch</th><th>Crop</th><th>Farmer</th><th>Warehouse</th><th>Available</th><th>Value at risk</th><th>Expiry</th><th>Status</th><th>First flagged</th><th>How it ended</th></tr></thead>
+            <tbody>{records.map(r => (
+              <tr key={r.id} className={r.status === 'resolved' ? 'opacity-70' : ''}>
+                <td className="font-mono text-xs font-semibold">{r.batch_no}</td>
+                <td>{r.crop_categories?.name ?? '–'}</td>
+                <td>{r.farmers?.full_name ?? '–'}</td>
+                <td>{r.warehouses?.name ?? '–'}</td>
+                <td>{Number(r.available_qty_kg).toLocaleString()} kg</td>
+                <td>{formatLKR(r.value_at_risk_lkr, 0)}</td>
+                <td>{formatDateSL(r.expiry_date)}</td>
+                <td><span className={r.status === 'resolved' ? 'badge-success' : r.status === 'expired' ? 'badge-danger' : 'badge-warning'}>{r.status === 'at_risk' ? 'At risk' : r.status === 'expired' ? 'Expired' : 'Resolved'}</span></td>
+                <td className="text-xs">{formatDateSL(r.first_flagged_at)}</td>
+                <td className="text-xs">{r.resolution_note ?? '–'}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </div>
 
       {/* Change expiry / flag a batch */}
       <Modal isOpen={action?.kind === 'expiry'} onClose={close} title={action?.batch ? `Expiry date – ${action.batch.batch_no}` : 'Flag a batch as near-expiry'}
