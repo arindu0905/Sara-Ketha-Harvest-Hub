@@ -8,6 +8,10 @@ import {
   createVariety,
   updateVariety,
   deleteVariety,
+  uploadVarietyImage,
+  uploadCategoryImage,
+  removeVarietyImage,
+  removeCategoryImage,
   getCrops,
   createCrop,
   getCropById,
@@ -29,6 +33,10 @@ router.delete('/categories/:id', requireRole('administrator'), deleteCategory);
 router.post('/categories/:categoryId/varieties', requireRole('administrator'), createVariety);
 router.put('/varieties/:id', requireRole('administrator'), updateVariety);
 router.delete('/varieties/:id', requireRole('administrator'), deleteVariety);
+router.post('/varieties/:id/image', requireRole('administrator'), uploadVarietyImage);
+router.delete('/varieties/:id/image', requireRole('administrator'), removeVarietyImage);
+router.post('/categories/:id/image', requireRole('administrator'), uploadCategoryImage);
+router.delete('/categories/:id/image', requireRole('administrator'), removeCategoryImage);
 
 router.get('/', getCrops);
 router.post('/', requireRole('farmer', 'collection_centre_officer', 'administrator'), validate(cropSchema), createCrop);

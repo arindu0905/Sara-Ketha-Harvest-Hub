@@ -89,6 +89,7 @@ import { UserManagement } from './pages/admin/UserManagement';
 import { CropCategories } from './pages/admin/CropCategories';
 import { CategoryProductsPage } from './pages/admin/CategoryProductsPage';
 import { PriceManagement } from './pages/admin/PriceManagement';
+import { CategoryProducts } from './pages/buyer/CategoryProducts';
 import { CollectionCentres } from './pages/admin/CollectionCentres';
 import { AuditLogs } from './pages/admin/AuditLogs';
 import { ComplaintManagement } from './pages/admin/ComplaintManagement';
@@ -186,6 +187,7 @@ function App() {
               <Route path="inspect/:collectionId" element={<CreateInspection />} />
               <Route path="inspections/create/:collectionId" element={<CreateInspection />} />
               <Route path="collections" element={<CollectionHistory />} />
+              <Route path="prices" element={<PriceManagement />} />
               <Route path="centres" element={<CollectionCentresOfficer />} />
               <Route path="centres/register" element={<CollectionCentresOfficer />} />
               <Route path="auctions/create-live" element={<CreateLiveAuction />} />
@@ -254,6 +256,7 @@ function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<BuyerDashboard />} />
               <Route path="marketplace" element={<ProductMarketplace />} />
+              <Route path="marketplace/:categoryId" element={<CategoryProducts />} />
               <Route path="orders/new" element={<CreateOrder />} />
               <Route path="orders/create" element={<CreateOrder />} />
               <Route path="orders" element={<MyOrders />} />

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   getInventory, getBatchById, adjustStock, transferBatch, getInventorySummary, assignLocation,
-  recordWastage, listWastage, getExpiryOverview, listNearExpiryRecords, runExpirySweep, updateBatchExpiry, applyClearancePrice,
+  recordWastage, listWastage, getExpiryOverview, getMarketplaceProducts, listNearExpiryRecords, runExpirySweep, updateBatchExpiry, applyClearancePrice,
 } from '../controllers/inventoryController';
 import { authenticate, requireRole } from '../middleware/auth';
 
@@ -13,6 +13,7 @@ const INV = ['inventory_manager'] as const;
 
 // Aggregated availability is safe for buyers (marketplace); batch-level data (cost prices, farmers) is staff-only.
 router.get('/summary', getInventorySummary);
+router.get('/marketplace/:categoryId', getMarketplaceProducts);
 router.get('/expiry', requireRole(...STOCK_VIEWERS), getExpiryOverview);
 router.get('/expiry/records', requireRole(...STOCK_VIEWERS), listNearExpiryRecords);
 router.post('/expiry/sweep', requireRole(...INV), runExpirySweep);

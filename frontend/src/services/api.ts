@@ -92,6 +92,12 @@ export const cropsApi = {
   getVarietiesByCategory: (categoryId: string) =>
     apiClient.get(`/crops/categories/${categoryId}`),
 
+  uploadVarietyImage: (id: string, image: string) =>
+    apiClient.post(`/crops/varieties/${id}/image`, { image }),
+
+  removeVarietyImage: (id: string) =>
+    apiClient.delete(`/crops/varieties/${id}/image`),
+
   updateVariety: (id: string, data: Record<string, unknown>) =>
     apiClient.put(`/crops/varieties/${id}`, data),
 
@@ -219,6 +225,9 @@ export const inspectionsApi = {
 export const inventoryApi = {
   getSummary: () =>
     apiClient.get('/inventory/summary'),
+
+  getMarketplace: (categoryId: string) =>
+    apiClient.get(`/inventory/marketplace/${categoryId}`),
 
   getAll: (params?: Record<string, string>) =>
     apiClient.get('/inventory', { params }),

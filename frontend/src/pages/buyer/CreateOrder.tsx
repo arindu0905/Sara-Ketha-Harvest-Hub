@@ -84,9 +84,11 @@ export const CreateOrder: React.FC = () => {
   const { user } = useAuth();
 
   const initialCatId = searchParams.get('category_id') || '';
+  const initialVarietyId = searchParams.get('variety_id') || '';
+  const initialGrade = searchParams.get('grade') || 'grade_a';
 
   const [items, setItems] = useState<OrderItem[]>([
-    { category_id: initialCatId, variety_id: '', grade: 'grade_a', requested_qty_kg: '' }
+    { category_id: initialCatId, variety_id: initialVarietyId, grade: initialGrade, requested_qty_kg: '' }
   ]);
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [requestedDate, setRequestedDate] = useState(() => {

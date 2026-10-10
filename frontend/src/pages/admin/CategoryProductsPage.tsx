@@ -15,6 +15,8 @@ import {
   XCircle,
   Package,
   Layers,
+  ImagePlus,
+  X as XIcon,
 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { formatCategoryName, getCategoryEnglish, getCategorySinhala, getCategoryTamil } from '../../utils/categoryUtils';
@@ -25,6 +27,7 @@ interface CropVariety {
   id: string;
   name: string;
   description?: string;
+  image_url?: string | null;
   is_active: boolean;
   created_at?: string;
 }
@@ -69,6 +72,37 @@ export const CategoryProductsPage: React.FC = () => {
 
   const category: CropCategory | null = response?.data?.data || null;
   const varieties: CropVariety[] = category?.crop_varieties || [];
+
+  // Product photos (administrator)
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const handleImagePick = (varietyId: string, file?: File | null) => {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return void toast.error('Please choose a PNG, JPG or WebP image');
+    if (file.size > 3 * 1024 * 1024) return void toast.error('Image is too large – the limit is 3 MB');
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setUploadingId(varietyId);
+      try {
+        await cropsApi.uploadVarietyImage(varietyId, String(reader.result));
+        toast.success('Product image saved');
+        queryClient.invalidateQueries({ queryKey: ['crop-category', id] });
+      } catch (err: any) {
+        toast.error(err?.response?.data?.message || 'Could not upload the image');
+      } finally {
+        setUploadingId(null);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  const handleImageRemove = async (varietyId: string) => {
+    try {
+      await cropsApi.removeVarietyImage(varietyId);
+      toast.success('Image removed');
+      queryClient.invalidateQueries({ queryKey: ['crop-category', id] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Could not remove the image');
+    }
+  };
 
   // Mutations
   const createProductMutation = useMutation({
@@ -375,6 +409,26 @@ export const CategoryProductsPage: React.FC = () => {
               key={product.id}
               className="card p-5 hover:shadow-card-hover transition-all flex flex-col justify-between border border-surface-200/80 hover:border-primary-300"
             >
+              <div className="relative -mx-5 -mt-5 mb-4 h-36 bg-surface-100 overflow-hidden rounded-t-2xl group">
+                {product.image_url ? (
+                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-surface-400 text-xs gap-1">
+                    <ImagePlus size={22} /> No photo yet
+                  </div>
+                )}
+                <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+                  <label className="cursor-pointer bg-white/95 hover:bg-white text-surface-700 text-[11px] font-semibold px-2.5 py-1 rounded-lg shadow flex items-center gap-1">
+                    <ImagePlus size={12} /> {uploadingId === product.id ? 'Uploading…' : product.image_url ? 'Change' : 'Add photo'}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={uploadingId === product.id}
+                      onChange={(e) => { handleImagePick(product.id, e.target.files?.[0]); e.target.value = ''; }} />
+                  </label>
+                  {product.image_url && (
+                    <button type="button" onClick={() => handleImageRemove(product.id)} title="Remove photo"
+                      className="bg-white/95 hover:bg-white text-red-600 p-1 rounded-lg shadow"><XIcon size={13} /></button>
+                  )}
+                </div>
+              </div>
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">

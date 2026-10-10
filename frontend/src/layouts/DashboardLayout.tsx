@@ -45,6 +45,7 @@ const getNavItems = (role: Role): NavItem[] => {
         { key: 'appointments', label: 'Appointments', path: '/officer/appointments', icon: <Calendar size={18} /> },
         { key: 'collections', label: 'Collections History', path: '/officer/collections', icon: <ClipboardList size={18} /> },
         { key: 'register_collection', label: 'Register Collection', path: '/officer/collections/register', icon: <Package size={18} /> },
+        { key: 'price_management', label: 'Price Management', path: '/officer/prices', icon: <DollarSign size={18} /> },
         { key: 'collection_centres', label: 'Collection Centres', path: '/officer/centres', icon: <Building2 size={18} /> },
         { key: 'start_live_auction', label: 'Start Live Auction', path: '/officer/auctions/create-live', icon: <Gavel size={18} /> },
         { key: 'live_auctions', label: 'View Live Auctions', path: '/officer/auctions/live', icon: <TrendingUp size={18} /> },

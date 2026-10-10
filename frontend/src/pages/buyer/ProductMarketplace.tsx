@@ -1,10 +1,11 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { inventoryApi } from '../../services/api';
 import { ShoppingCart, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export const ProductMarketplace: React.FC = () => {
+  const navigate = useNavigate();
   const { data: summaryRes, isLoading } = useQuery({
     queryKey: ['marketplace-summary'],
     queryFn: () => inventoryApi.getSummary(),
@@ -84,7 +85,8 @@ export const ProductMarketplace: React.FC = () => {
               return (
                 <div
                   key={cat.category_id || i}
-                  className="card-hover p-6 flex flex-col justify-between relative overflow-hidden border border-surface-200/80 shadow-sm"
+                  className="card-hover p-6 flex flex-col justify-between relative overflow-hidden border border-surface-200/80 shadow-sm cursor-pointer"
+                  onClick={() => cat.category_id && navigate(`/buyer/marketplace/${cat.category_id}`)}
                 >
                   {/* Newly Added Badge */}
                   <div className="absolute top-4 right-4">
@@ -133,10 +135,10 @@ export const ProductMarketplace: React.FC = () => {
                   </div>
 
                   <Link
-                    to={`/buyer/orders/new?category_id=${cat.category_id || ''}`}
+                    to={`/buyer/marketplace/${cat.category_id || ''}`}
                     className="btn-primary w-full btn-sm flex items-center justify-center gap-2 shadow-md shadow-primary-600/15 py-2.5 font-semibold text-xs"
                   >
-                    <ShoppingCart size={15} /> Order Now <ArrowRight size={14} />
+                    <ShoppingCart size={15} /> View Products & Prices <ArrowRight size={14} />
                   </Link>
                 </div>
               );

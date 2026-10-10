@@ -217,6 +217,72 @@ export const getExpiryOverview = async (_req: Request, res: Response, next: Next
 };
 
 /**
+ * GET /api/inventory/marketplace/:categoryId
+ * Registered products (varieties) of a category with their photo, current selling price per grade and
+ * sellable stock (expired stock excluded). Used by the buyer marketplace; no cost prices or farmer data.
+ */
+export const getMarketplaceProducts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { categoryId } = req.params;
+    const today = todayInSriLanka();
+
+    const { data: category } = await supabaseAdmin.from('crop_categories').select('*').eq('id', categoryId).maybeSingle();
+    if (!category) throw new AppError('Category not found', 404);
+
+    const [{ data: varieties, error: vErr }, { data: batches, error: bErr }, { data: prices, error: pErr }] = await Promise.all([
+      supabaseAdmin.from('crop_varieties').select('*').eq('category_id', categoryId).eq('is_active', true).order('name'),
+      supabaseAdmin.from('inventory_batches')
+        .select('variety_id, grade, available_qty_kg, expected_expiry_date')
+        .eq('category_id', categoryId).gt('available_qty_kg', 0).in('status', ['available', 'reserved', 'partially_sold']),
+      supabaseAdmin.from('crop_prices')
+        .select('variety_id, grade, selling_price, unit, effective_until')
+        .eq('category_id', categoryId).eq('status', 'active').lte('effective_from', today),
+    ]);
+    if (vErr || bErr || pErr) throw new AppError((vErr || bErr || pErr)!.message, 500);
+
+    const livePrices = (prices || []).filter((p: any) => !p.effective_until || String(p.effective_until).slice(0, 10) >= today);
+    const sellable = (batches || []).filter((b: any) => !b.expected_expiry_date || String(b.expected_expiry_date).slice(0, 10) >= today);
+    const GRADE_ORDER = ['grade_a', 'grade_b', 'grade_c'];
+
+    const priceFor = (varietyId: string, grade: string): number | null => {
+      const specific = livePrices.find((p: any) => p.variety_id === varietyId && p.grade === grade);
+      const generic = livePrices.find((p: any) => !p.variety_id && p.grade === grade);
+      const v = specific ?? generic;
+      return v ? Number(v.selling_price) : null;
+    };
+
+    const products = (varieties || []).map((v: any) => {
+      const stock: Record<string, number> = {};
+      sellable.filter((b: any) => b.variety_id === v.id).forEach((b: any) => { stock[b.grade] = (stock[b.grade] || 0) + Number(b.available_qty_kg); });
+      const grades = Array.from(new Set([...Object.keys(stock), ...GRADE_ORDER.filter((g) => priceFor(v.id, g) !== null)]))
+        .sort((a, b) => GRADE_ORDER.indexOf(a) - GRADE_ORDER.indexOf(b))
+        .map((g) => ({ grade: g, available_kg: Math.round((stock[g] || 0) * 1000) / 1000, price_per_kg: priceFor(v.id, g) }));
+      const priced = grades.map((g) => g.price_per_kg).filter((x): x is number => x !== null);
+      return {
+        id: v.id, name: v.name, description: v.description ?? null, image_url: v.image_url ?? null,
+        available_kg: Math.round(Object.values(stock).reduce((a, b) => a + b, 0) * 1000) / 1000,
+        grades, price_from: priced.length ? Math.min(...priced) : null,
+      };
+    });
+    // stock recorded without a variety is shown as a general entry so nothing sellable is hidden
+    const unassigned: Record<string, number> = {};
+    sellable.filter((b: any) => !b.variety_id).forEach((b: any) => { unassigned[b.grade] = (unassigned[b.grade] || 0) + Number(b.available_qty_kg); });
+    if (Object.keys(unassigned).length) {
+      products.push({
+        id: '', name: `${category.name} (general)`, description: 'Stock not assigned to a specific product', image_url: null,
+        available_kg: Math.round(Object.values(unassigned).reduce((a, b) => a + b, 0) * 1000) / 1000,
+        grades: Object.keys(unassigned).sort((a, b) => GRADE_ORDER.indexOf(a) - GRADE_ORDER.indexOf(b)).map((g) => {
+          const generic = livePrices.find((p: any) => !p.variety_id && p.grade === g);
+          return { grade: g, available_kg: Math.round(unassigned[g] * 1000) / 1000, price_per_kg: generic ? Number(generic.selling_price) : null };
+        }),
+        price_from: null,
+      });
+    }
+    sendSuccess(res, { data: { category: { id: category.id, name: category.name, image_url: category.image_url ?? null }, products } });
+  } catch (e) { next(e); }
+};
+
+/**
  * GET /api/inventory/expiry/records
  * The separate near-expiry register (table near_expiry_stock): every batch that is or was at risk, with how it ended.
  * Query: status = at_risk | expired | resolved (optional)

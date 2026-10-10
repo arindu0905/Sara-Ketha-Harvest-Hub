@@ -31,7 +31,7 @@ export const getCategoryById = async (req: Request, res: Response, next: NextFun
     const { id } = req.params;
     const { data, error } = await supabaseAdmin
       .from('crop_categories')
-      .select('*, crop_varieties(id, name, description, is_active, created_at)')
+      .select('*, crop_varieties(*)')
       .eq('id', id)
       .single();
 
@@ -274,3 +274,59 @@ export const deleteCrop = async (req: AuthenticatedRequest, res: Response, next:
     sendSuccess(res, { message: 'Crop removed successfully' });
   } catch (e) { next(e); }
 };
+
+// ─── Product / category images ──────────────────────────────────────────────
+const IMAGE_BUCKET = 'product-images';
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+
+/** Creates the public bucket the first time an image is uploaded. */
+async function ensureImageBucket(): Promise<void> {
+  const { data } = await supabaseAdmin.storage.getBucket(IMAGE_BUCKET);
+  if (data) return;
+  const { error } = await supabaseAdmin.storage.createBucket(IMAGE_BUCKET, { public: true, fileSizeLimit: MAX_IMAGE_BYTES });
+  if (error && !/already exists/i.test(error.message)) throw new AppError(`Could not prepare image storage: ${error.message}`, 500);
+}
+
+const imageHandler = (table: 'crop_varieties' | 'crop_categories', kind: 'variety' | 'category') =>
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id;
+      const { data: row } = await supabaseAdmin.from(table).select('id, name').eq('id', id).maybeSingle();
+      if (!row) throw new AppError(`${kind === 'variety' ? 'Product' : 'Category'} not found`, 404);
+
+      const m = /^data:(image\/(png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body?.image || ''));
+      if (!m) throw new AppError('Please upload a PNG, JPG or WebP image', 400);
+      const buffer = Buffer.from(m[3], 'base64');
+      if (buffer.length > MAX_IMAGE_BYTES) throw new AppError('Image is too large – the limit is 3 MB', 400);
+
+      await ensureImageBucket();
+      const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
+      const path = `${kind}/${id}_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabaseAdmin.storage.from(IMAGE_BUCKET).upload(path, buffer, { contentType: m[1], upsert: false });
+      if (upErr) throw new AppError(`Image upload failed: ${upErr.message}`, 500);
+      const url = supabaseAdmin.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+
+      const { error } = await supabaseAdmin.from(table).update({ image_url: url }).eq('id', id);
+      if (error) {
+        if (/image_url|schema cache/i.test(error.message)) {
+          throw new AppError('Product images are not set up yet. Run RUN_8_product_images.sql in the Supabase SQL editor.', 503);
+        }
+        throw new AppError(error.message, 500);
+      }
+      sendSuccess(res, { data: { image_url: url }, message: 'Image saved' });
+    } catch (e) { next(e); }
+  };
+
+const removeImageHandler = (table: 'crop_varieties' | 'crop_categories') =>
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { error } = await supabaseAdmin.from(table).update({ image_url: null }).eq('id', req.params.id);
+      if (error) throw new AppError(error.message, 500);
+      sendSuccess(res, { message: 'Image removed' });
+    } catch (e) { next(e); }
+  };
+
+export const uploadVarietyImage = imageHandler('crop_varieties', 'variety');
+export const uploadCategoryImage = imageHandler('crop_categories', 'category');
+export const removeVarietyImage = removeImageHandler('crop_varieties');
+export const removeCategoryImage = removeImageHandler('crop_categories');
