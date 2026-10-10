@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { one } from '../../utils/relations';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { collectionsApi, farmerPaymentsApi } from '../../services/api';
+import { collectionsApi, farmerPaymentsApi, pricesApi } from '../../services/api';
 import { ArrowLeft, DollarSign, Plus, Trash2, Loader2, Calculator, CheckCircle2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -10,32 +10,6 @@ interface Deduction {
   description: string;
   amount_lkr: number;
 }
-
-// Reference base rate pricing per kg for crop categories (LKR)
-const CROP_BASE_RATES: Record<string, number> = {
-  'rice': 220,
-  'paddy': 220,
-  'samba': 240,
-  'keeri samba': 280,
-  'tomato': 185,
-  'carrot': 320,
-  'potato': 260,
-  'onion': 210,
-  'chilli': 450,
-  'cabbage': 140,
-  'leeks': 190,
-  'banana': 160,
-  'papaya': 130,
-  'tea': 360,
-  'cinnamon': 850,
-};
-
-const GRADE_MULTIPLIERS: Record<string, number> = {
-  'grade_a': 1.0,
-  'grade_b': 0.85,
-  'grade_c': 0.70,
-  'reject': 0.0,
-};
 
 export const CalculatePayment: React.FC = () => {
   const { collectionId } = useParams<{ collectionId: string }>();
@@ -57,14 +31,16 @@ export const CalculatePayment: React.FC = () => {
   const collection = collectionRes?.data?.data;
   const inspection = one(collection?.quality_inspections);
 
-  // Derive rate based on crop category and quality grade
-  const cropName = (collection?.crop_categories?.name || collection?.crops?.name || 'Produce').toLowerCase();
-  const matchedKey = Object.keys(CROP_BASE_RATES).find(k => cropName.includes(k));
-  const basePricePerKg = matchedKey ? CROP_BASE_RATES[matchedKey] : 200;
-
-  const rawGrade = (inspection?.grade || 'grade_a').toLowerCase().replace(/\s+/g, '_');
-  const gradeMultiplier = GRADE_MULTIPLIERS[rawGrade] !== undefined ? GRADE_MULTIPLIERS[rawGrade] : 1.0;
-  const effectivePricePerKg = Math.round(basePricePerKg * gradeMultiplier);
+  // The purchase price comes from the active price list (Price Management) for this crop, grade and centre
+  const grade = String(inspection?.grade || 'grade_a').toLowerCase().replace(/s+/g, '_');
+  const { data: priceRes } = useQuery({
+    queryKey: ['calc-price', collection?.category_id, grade],
+    queryFn: () => pricesApi.getCurrent({ category_id: collection.category_id, grade }),
+    enabled: !!collection?.category_id,
+  });
+  const priceRows: any[] = priceRes?.data?.data || [];
+  const matched = priceRows.find((p) => p.centre_id === collection?.centre_id) || priceRows.find((p) => !p.centre_id) || priceRows[0];
+  const effectivePricePerKg = Number(matched?.purchase_price) || 0;
 
   const acceptedQtyKg = parseFloat(inspection?.accepted_qty_kg || collection?.net_weight_kg || 0);
   const grossAmountLkr = Math.round(acceptedQtyKg * effectivePricePerKg);
@@ -111,7 +87,6 @@ export const CalculatePayment: React.FC = () => {
       collection_id: collectionId,
       deductions,
       gross_amount_lkr: grossAmountLkr,
-      unit_price_lkr: effectivePricePerKg,
       net_amount_lkr: netPaymentLkr,
     });
   };
@@ -178,17 +153,12 @@ export const CalculatePayment: React.FC = () => {
 
             <div className="space-y-3 text-sm">
               <div className="flex justify-between items-center text-surface-600">
-                <span>Base Market Rate (Reference Pricing):</span>
-                <span className="font-semibold text-surface-900">LKR {basePricePerKg.toLocaleString()} / kg</span>
+                <span>Purchase price (active price list, {grade.replace('_', ' ')}):</span>
+                <span className="font-bold text-emerald-700">{effectivePricePerKg > 0 ? `LKR ${effectivePricePerKg.toLocaleString()} / kg` : 'Not set'}</span>
               </div>
-              <div className="flex justify-between items-center text-surface-600">
-                <span>Grade Adjustment Factor:</span>
-                <span className="font-semibold text-surface-900">{(gradeMultiplier * 100).toFixed(0)}%</span>
-              </div>
-              <div className="flex justify-between items-center text-surface-600">
-                <span>Effective Rate:</span>
-                <span className="font-bold text-emerald-700">LKR {effectivePricePerKg.toLocaleString()} / kg</span>
-              </div>
+              {effectivePricePerKg <= 0 && (
+                <p className="text-xs text-red-600">No active purchase price is configured for this crop and grade. Ask an administrator to add one in Price Management.</p>
+              )}
 
               <div className="pt-3 border-t border-surface-200 flex justify-between items-center bg-white p-3.5 rounded-xl border border-surface-200">
                 <div>
@@ -304,7 +274,7 @@ export const CalculatePayment: React.FC = () => {
 
             <button
               onClick={handleCalculate}
-              disabled={mutation.isPending}
+              disabled={mutation.isPending || effectivePricePerKg <= 0}
               className="btn-primary w-full py-2.5 flex items-center justify-center gap-2 text-sm shadow-md mt-3"
             >
               {mutation.isPending ? (
