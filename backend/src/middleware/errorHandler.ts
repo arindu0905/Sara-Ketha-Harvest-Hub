@@ -61,6 +61,12 @@ export const errorHandler = (
     return;
   }
 
+  // Browser origin not on the CORS allow-list
+  if (msg.startsWith('CORS: Origin')) {
+    res.status(403).json({ success: false, message: 'This website is not allowed to use the API' } satisfies ErrorResponse);
+    return;
+  }
+
   // Known application errors
   if (err instanceof AppError) {
     const response: ErrorResponse = {
