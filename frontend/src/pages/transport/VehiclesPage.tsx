@@ -8,6 +8,7 @@ import {
 import { Modal } from '../../components/ui/Modal';
 import { useLanguage } from '../../contexts/LanguageContext';
 import toast from 'react-hot-toast';
+import { validateNIC, validateSLPhone, validateLicense } from '../../utils/validators';
 
 interface Vehicle {
   id: string;
@@ -72,6 +73,12 @@ export const VehiclesPage: React.FC = () => {
   // Driver Modals
   const [showAddDriverModal, setShowAddDriverModal] = useState(false);
   const [driverForm, setDriverForm] = useState(INITIAL_DRIVER_FORM);
+  const driverErrors = (d: { nic_number: string; phone: string; license_no: string }) => ({
+    nic_number: validateNIC(d.nic_number),
+    phone: validateSLPhone(d.phone),
+    license_no: validateLicense(d.license_no),
+  });
+  const [showDriverErrors, setShowDriverErrors] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [driverToDelete, setDriverToDelete] = useState<Driver | null>(null);
 
@@ -212,7 +219,7 @@ export const VehiclesPage: React.FC = () => {
             </button>
           ) : (
             <button
-              onClick={() => { setDriverForm(INITIAL_DRIVER_FORM); setShowAddDriverModal(true); }}
+              onClick={() => { setDriverForm(INITIAL_DRIVER_FORM); setShowDriverErrors(false); setShowAddDriverModal(true); }}
               className="btn-primary flex items-center gap-2"
             >
               <Plus size={16} /> Register Driver
@@ -401,7 +408,7 @@ export const VehiclesPage: React.FC = () => {
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => setEditingDriver(d)}
+                            onClick={() => { setShowDriverErrors(false); setEditingDriver(d); }}
                             className="btn-secondary py-1 px-2.5 text-xs flex items-center gap-1"
                           >
                             <Edit3 size={13} /> Edit
@@ -600,7 +607,12 @@ export const VehiclesPage: React.FC = () => {
         title="Register New Driver"
         subtitle="Add a licensed driver to the logistics operations"
       >
-        <form onSubmit={(e) => { e.preventDefault(); createDriverMutation.mutate(driverForm); }} className="space-y-4">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          setShowDriverErrors(true);
+          if (Object.values(driverErrors(driverForm)).some(Boolean)) return toast.error('Please fix the highlighted fields');
+          createDriverMutation.mutate({ ...driverForm, nic_number: driverForm.nic_number.trim().toUpperCase(), phone: driverForm.phone.trim() });
+        }} className="space-y-4" noValidate>
           <div>
             <label className="block text-sm font-semibold text-surface-700 mb-1.5">
               Full Name <span className="text-red-500">*</span>
@@ -625,9 +637,10 @@ export const VehiclesPage: React.FC = () => {
                 value={driverForm.nic_number}
                 onChange={(e) => setDriverForm({ ...driverForm, nic_number: e.target.value })}
                 placeholder="e.g. 198512345678"
-                className="input w-full"
+                className={`input w-full ${showDriverErrors && driverErrors(driverForm).nic_number ? 'border-red-400' : ''}`}
                 required
               />
+              {showDriverErrors && driverErrors(driverForm).nic_number && <p className="mt-1 text-xs text-red-600">{driverErrors(driverForm).nic_number}</p>}
             </div>
 
             <div>
@@ -639,9 +652,10 @@ export const VehiclesPage: React.FC = () => {
                 value={driverForm.license_no}
                 onChange={(e) => setDriverForm({ ...driverForm, license_no: e.target.value.toUpperCase() })}
                 placeholder="e.g. B1234567"
-                className="input w-full font-mono"
+                className={`input w-full font-mono ${showDriverErrors && driverErrors(driverForm).license_no ? 'border-red-400' : ''}`}
                 required
               />
+              {showDriverErrors && driverErrors(driverForm).license_no && <p className="mt-1 text-xs text-red-600">{driverErrors(driverForm).license_no}</p>}
             </div>
           </div>
 
@@ -654,9 +668,12 @@ export const VehiclesPage: React.FC = () => {
               value={driverForm.phone}
               onChange={(e) => setDriverForm({ ...driverForm, phone: e.target.value })}
               placeholder="e.g. 0771234567"
-              className="input w-full"
+              inputMode="numeric"
+              maxLength={10}
+              className={`input w-full ${showDriverErrors && driverErrors(driverForm).phone ? 'border-red-400' : ''}`}
               required
             />
+            {showDriverErrors && driverErrors(driverForm).phone && <p className="mt-1 text-xs text-red-600">{driverErrors(driverForm).phone}</p>}
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-surface-100">
@@ -677,8 +694,10 @@ export const VehiclesPage: React.FC = () => {
           title={`Edit ${editingDriver.full_name}`}
           subtitle="Update driver credentials and contact details"
         >
-          <form onSubmit={(e) => {
+          <form noValidate onSubmit={(e) => {
             e.preventDefault();
+            setShowDriverErrors(true);
+            if (Object.values(driverErrors(editingDriver)).some(Boolean)) return toast.error('Please fix the highlighted fields');
             updateDriverMutation.mutate({
               id: editingDriver.id,
               data: {
@@ -708,9 +727,10 @@ export const VehiclesPage: React.FC = () => {
                   type="text"
                   value={editingDriver.nic_number}
                   onChange={(e) => setEditingDriver({ ...editingDriver, nic_number: e.target.value })}
-                  className="input w-full font-mono"
+                  className={`input w-full font-mono ${showDriverErrors && driverErrors(editingDriver).nic_number ? 'border-red-400' : ''}`}
                   required
                 />
+                {showDriverErrors && driverErrors(editingDriver).nic_number && <p className="mt-1 text-xs text-red-600">{driverErrors(editingDriver).nic_number}</p>}
               </div>
 
               <div>
@@ -719,9 +739,10 @@ export const VehiclesPage: React.FC = () => {
                   type="text"
                   value={editingDriver.license_no}
                   onChange={(e) => setEditingDriver({ ...editingDriver, license_no: e.target.value.toUpperCase() })}
-                  className="input w-full font-mono"
+                  className={`input w-full font-mono ${showDriverErrors && driverErrors(editingDriver).license_no ? 'border-red-400' : ''}`}
                   required
                 />
+                {showDriverErrors && driverErrors(editingDriver).license_no && <p className="mt-1 text-xs text-red-600">{driverErrors(editingDriver).license_no}</p>}
               </div>
             </div>
 
@@ -731,9 +752,12 @@ export const VehiclesPage: React.FC = () => {
                 type="text"
                 value={editingDriver.phone}
                 onChange={(e) => setEditingDriver({ ...editingDriver, phone: e.target.value })}
-                className="input w-full"
+                inputMode="numeric"
+                maxLength={10}
+                className={`input w-full ${showDriverErrors && driverErrors(editingDriver).phone ? 'border-red-400' : ''}`}
                 required
               />
+              {showDriverErrors && driverErrors(editingDriver).phone && <p className="mt-1 text-xs text-red-600">{driverErrors(editingDriver).phone}</p>}
             </div>
 
             <div>

@@ -113,20 +113,37 @@ router.get('/drivers', requireRole('administrator','manager','transport_coordina
   } catch (e) { next(e); }
 });
 
+const NIC_RE = /^(\d{9}[VvXx]|\d{12})$/;
+const PHONE_RE = /^0\d{9}$/;
+const LICENSE_RE = /^[A-Za-z]{1,2}\d{6,8}$/;
+const assertDriverFields = (b: Record<string, any>, partial: boolean) => {
+  const check = (key: string, re: RegExp, message: string) => {
+    if (b[key] === undefined || b[key] === null || b[key] === '') { if (!partial) throw new AppError(message, 400); return; }
+    if (!re.test(String(b[key]).trim())) throw new AppError(message, 400);
+  };
+  check('nic_number', NIC_RE, 'NIC must be 9 digits followed by V or X, or 12 digits');
+  check('phone', PHONE_RE, 'Phone number must be 10 digits starting with 0 (e.g. 0771234567)');
+  check('license_no', LICENSE_RE, 'Licence number must be 1-2 letters followed by 4-8 digits (e.g. B1234567)');
+  if (!partial && !String(b.full_name || '').trim()) throw new AppError('Full name is required', 400);
+};
+const dupDriverMessage = (m: string) =>
+  m.includes('nic_number') ? 'A driver with this NIC already exists' : m.includes('license') ? 'A driver with this licence number already exists' : 'A driver with these details already exists';
+
 router.post('/drivers', requireRole('transport_coordinator', 'administrator'), async (req: any, res, next) => {
   try {
     const { full_name, nic_number, phone, license_no, centre_id, is_active = true } = req.body;
     if (!full_name || !nic_number || !phone || !license_no) {
       throw new AppError('Full name, NIC, phone, and license number are required', 400);
     }
+    assertDriverFields(req.body, false);
 
     const { data, error } = await supabaseAdmin
       .from('drivers')
       .insert({
-        full_name,
-        nic_number,
-        phone,
-        license_no,
+        full_name: String(full_name).trim(),
+        nic_number: String(nic_number).trim().toUpperCase(),
+        phone: String(phone).trim(),
+        license_no: String(license_no).trim().toUpperCase(),
         centre_id: centre_id || null,
         is_active,
         created_by: req.user.id,
@@ -134,7 +151,7 @@ router.post('/drivers', requireRole('transport_coordinator', 'administrator'), a
       .select('*, collection_centres!centre_id(name, district)')
       .single();
 
-    if (error) throw new AppError(error.message, 400);
+    if (error) throw new AppError(error.code === '23505' || /duplicate key/.test(error.message) ? dupDriverMessage(error.message) : error.message, error.code === '23505' || /duplicate key/.test(error.message) ? 409 : 400);
     sendSuccess(res, { data, statusCode: 201, message: 'Driver registered successfully' });
   } catch (e) { next(e); }
 });
@@ -142,6 +159,7 @@ router.post('/drivers', requireRole('transport_coordinator', 'administrator'), a
 router.put('/drivers/:id', requireRole('transport_coordinator', 'administrator'), async (req: any, res, next) => {
   try {
     const { full_name, nic_number, phone, license_no, centre_id, is_active } = req.body;
+    assertDriverFields(req.body, true);
     const { data, error } = await supabaseAdmin
       .from('drivers')
       .update({
@@ -156,7 +174,10 @@ router.put('/drivers/:id', requireRole('transport_coordinator', 'administrator')
       .select('*, collection_centres!centre_id(name, district)')
       .single();
 
-    if (error) throw new AppError(error.message, 500);
+    if (error) {
+      const dup = error.code === '23505' || /duplicate key/.test(error.message);
+      throw new AppError(dup ? dupDriverMessage(error.message) : error.message, dup ? 409 : 500);
+    }
     sendSuccess(res, { data, message: 'Driver updated successfully' });
   } catch (e) { next(e); }
 });

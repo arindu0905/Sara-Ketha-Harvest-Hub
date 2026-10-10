@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { deliveriesApi } from '../../services/api';
+import { deliveriesApi, warehousesApi } from '../../services/api';
 import {
   Truck, Calendar, Plus, Search, Filter, Edit3, Trash2,
   CheckCircle, Navigation, AlertCircle, Clock, MapPin,
@@ -61,7 +61,7 @@ const INITIAL_SCHEDULE_FORM = {
   order_id: '',
   vehicle_id: '',
   driver_id: '',
-  pickup_address: 'Central Storage Hub, Colombo',
+  pickup_address: '',
   delivery_address: '',
   scheduled_date: new Date().toISOString().slice(0, 10),
   scheduled_time: '09:00',
@@ -94,6 +94,15 @@ export const DeliverySchedule: React.FC = () => {
     queryKey: ['transport-drivers-list'],
     queryFn: () => deliveriesApi.getDrivers(),
   });
+
+  // pickup locations = the registered warehouses
+  const { data: whRes } = useQuery({
+    queryKey: ['transport-warehouses'],
+    queryFn: () => warehousesApi.getAll({ active_only: 'true' }),
+  });
+  const warehouseOptions: string[] = (whRes?.data?.data || []).map((w: any) =>
+    `${w.name}${w.address ? ` – ${w.address}` : w.collection_centres?.district ? ` – ${w.collection_centres.district}` : ''}`);
+  const pickupOptions = (current: string) => (current && !warehouseOptions.includes(current) ? [current, ...warehouseOptions] : warehouseOptions);
 
   const { data: ordersRes } = useQuery({
     queryKey: ['transport-orders-list'],
@@ -425,7 +434,7 @@ export const DeliverySchedule: React.FC = () => {
                               <Navigation size={11} /> Start
                             </button>
                           )}
-                          {item.status === 'in_transit' && (
+                          {(item.status === 'in_transit' || item.status === 'arrived') && (
                             <button
                               onClick={() => updateStatusMutation.mutate({ id: item.id, status: 'delivered' })}
                               title="Mark as Delivered"
@@ -565,13 +574,15 @@ export const DeliverySchedule: React.FC = () => {
             <label className="block text-sm font-semibold text-surface-700 mb-1.5">
               Pickup Location
             </label>
-            <input
-              type="text"
+            <select
               value={scheduleForm.pickup_address}
               onChange={(e) => setScheduleForm({ ...scheduleForm, pickup_address: e.target.value })}
-              placeholder="e.g. Central Storage Hub, Colombo"
               className="input w-full"
-            />
+              required
+            >
+              <option value="">-- Select warehouse --</option>
+              {pickupOptions(scheduleForm.pickup_address).map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
           </div>
 
           {/* Delivery Address */}
@@ -710,12 +721,13 @@ export const DeliverySchedule: React.FC = () => {
 
             <div>
               <label className="block text-sm font-semibold text-surface-700 mb-1.5">Pickup Location</label>
-              <input
-                type="text"
+              <select
                 value={editingSchedule.pickup_address}
                 onChange={(e) => setEditingSchedule({ ...editingSchedule, pickup_address: e.target.value })}
                 className="input w-full"
-              />
+              >
+                {pickupOptions(editingSchedule.pickup_address).map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
             </div>
 
             <div>
