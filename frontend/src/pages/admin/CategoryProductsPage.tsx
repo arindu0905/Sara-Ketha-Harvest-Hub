@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { cropsApi } from '../../services/api';
+import { cropsApi, pricesApi } from '../../services/api';
+import { formatLKR } from '../../utils/lkrFormat';
 import {
   ArrowLeft,
   Leaf,
@@ -17,6 +18,7 @@ import {
   Layers,
   ImagePlus,
   X as XIcon,
+  DollarSign,
 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { formatCategoryName, getCategoryEnglish, getCategorySinhala, getCategoryTamil } from '../../utils/categoryUtils';
@@ -73,6 +75,72 @@ export const CategoryProductsPage: React.FC = () => {
 
   const category: CropCategory | null = response?.data?.data || null;
   const varieties: CropVariety[] = category?.crop_varieties || [];
+
+  // ── Prices per product (purchase + selling price for each grade) ──
+  const GRADES = ['grade_a', 'grade_b', 'grade_c'];
+  const gradeName = (g: string) => g.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+  const [priceProduct, setPriceProduct] = useState<CropVariety | null>(null);
+  const [priceForm, setPriceForm] = useState<Record<string, { purchase: string; selling: string }>>({});
+  const [savingPrices, setSavingPrices] = useState(false);
+
+  const { data: pricesRes } = useQuery({
+    queryKey: ['category-prices', id],
+    queryFn: () => pricesApi.getCurrent({ category_id: id! }),
+    enabled: Boolean(id),
+  });
+  const categoryPrices: any[] = pricesRes?.data?.data || [];
+  /** The price a buyer sees: the product's own price, else the category-wide one. */
+  const priceFor = (varietyId: string, grade: string) => {
+    const own = categoryPrices.find((p) => p.variety_id === varietyId && p.grade === grade);
+    if (own) return { row: own, own: true };
+    const general = categoryPrices.find((p) => !p.variety_id && p.grade === grade);
+    return general ? { row: general, own: false } : null;
+  };
+
+  const openPriceEditor = (product: CropVariety) => {
+    const form: Record<string, { purchase: string; selling: string }> = {};
+    GRADES.forEach((g) => {
+      const own = categoryPrices.find((p) => p.variety_id === product.id && p.grade === g);
+      form[g] = { purchase: own ? String(own.purchase_price) : '', selling: own ? String(own.selling_price) : '' };
+    });
+    setPriceForm(form);
+    setPriceProduct(product);
+  };
+
+  const savePrices = async () => {
+    if (!priceProduct) return;
+    const today = new Date().toLocaleDateString('en-CA');
+    // validate first: a grade needs both prices, greater than zero
+    for (const g of GRADES) {
+      const { purchase, selling } = priceForm[g];
+      if (!purchase && !selling) continue;
+      const p = Number(purchase), sl = Number(selling);
+      if (!purchase || !selling) return void toast.error(`${gradeName(g)}: enter both the purchase and the selling price`);
+      if (!Number.isFinite(p) || !Number.isFinite(sl) || p <= 0 || sl <= 0) return void toast.error(`${gradeName(g)}: prices must be greater than zero`);
+    }
+    setSavingPrices(true);
+    try {
+      let changed = 0;
+      for (const g of GRADES) {
+        const { purchase, selling } = priceForm[g];
+        if (!purchase && !selling) continue;
+        const own = categoryPrices.find((p) => p.variety_id === priceProduct.id && p.grade === g);
+        if (own && Number(own.purchase_price) === Number(purchase) && Number(own.selling_price) === Number(selling)) continue;
+        if (own) await pricesApi.update(own.id, { purchase_price: Number(purchase), selling_price: Number(selling) });
+        else await pricesApi.create({ category_id: id, variety_id: priceProduct.id, grade: g, purchase_price: Number(purchase), selling_price: Number(selling), unit: 'kg', effective_from: today });
+        changed++;
+      }
+      toast.success(changed ? `Prices saved for ${priceProduct.name}` : 'No changes to save');
+      queryClient.invalidateQueries({ queryKey: ['category-prices', id] });
+      queryClient.invalidateQueries({ queryKey: ['current-prices'] });
+      queryClient.invalidateQueries({ queryKey: ['marketplace-products'] });
+      setPriceProduct(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Could not save the prices');
+    } finally {
+      setSavingPrices(false);
+    }
+  };
 
   // Product photos (administrator)
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -457,9 +525,26 @@ export const CategoryProductsPage: React.FC = () => {
                   </span>
                 </div>
 
-                <p className="text-xs text-surface-500 leading-relaxed mt-2 mb-4 pl-1">
+                <p className="text-xs text-surface-500 leading-relaxed mt-2 mb-3 pl-1">
                   {product.description || 'No specific product description provided.'}
                 </p>
+
+                <div className="mb-4 rounded-lg border border-surface-100 bg-surface-50 divide-y divide-surface-100 text-xs">
+                  {GRADES.map((g) => {
+                    const pr = priceFor(product.id, g);
+                    return (
+                      <div key={g} className="flex items-center justify-between px-3 py-1.5">
+                        <span className="text-surface-600">{gradeName(g)}</span>
+                        {pr ? (
+                          <span className="font-semibold text-surface-900">
+                            {formatLKR(pr.row.selling_price, 2)} / kg
+                            {!pr.own && <span className="ml-1 font-normal text-surface-400">(category price)</span>}
+                          </span>
+                        ) : <span className="text-surface-400">Price not set</span>}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="pt-3 border-t border-surface-100 flex items-center justify-between text-xs">
@@ -468,6 +553,13 @@ export const CategoryProductsPage: React.FC = () => {
                 </span>
 
                 <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => openPriceEditor(product)}
+                    className="btn-ghost px-2 py-1.5 rounded-lg text-primary-700 hover:bg-primary-50 text-[11px] font-semibold flex items-center gap-1"
+                    title="Edit prices"
+                  >
+                    <DollarSign size={13} /> Edit prices
+                  </button>
                   <button
                     onClick={() => handleOpenEditProductModal(product)}
                     className="btn-ghost p-1.5 rounded-lg text-surface-500 hover:text-surface-900 hover:bg-surface-100"
@@ -488,6 +580,34 @@ export const CategoryProductsPage: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* ─── Edit Prices Modal ─── */}
+      <Modal
+        isOpen={!!priceProduct}
+        onClose={() => setPriceProduct(null)}
+        title={`Prices – ${priceProduct?.name ?? ''}`}
+        subtitle="Prices per kg for each grade. Leave a grade blank to use the category price."
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-[90px_1fr_1fr] gap-2 text-xs font-semibold text-surface-500 px-1">
+            <span>Grade</span><span>Purchase (Rs/kg)</span><span>Selling (Rs/kg)</span>
+          </div>
+          {GRADES.map((g) => (
+            <div key={g} className="grid grid-cols-[90px_1fr_1fr] gap-2 items-center">
+              <span className="text-sm font-medium text-surface-700">{gradeName(g)}</span>
+              <input type="number" min="0" step="0.01" inputMode="decimal" className="input w-full" placeholder="0.00"
+                value={priceForm[g]?.purchase ?? ''} onChange={(e) => setPriceForm({ ...priceForm, [g]: { ...priceForm[g], purchase: e.target.value } })} />
+              <input type="number" min="0" step="0.01" inputMode="decimal" className="input w-full" placeholder="0.00"
+                value={priceForm[g]?.selling ?? ''} onChange={(e) => setPriceForm({ ...priceForm, [g]: { ...priceForm[g], selling: e.target.value } })} />
+            </div>
+          ))}
+          <p className="text-xs text-surface-400">Purchase = what the farmer is paid. Selling = what buyers pay. Buyers see the new selling price straight away.</p>
+          <div className="flex justify-end gap-3 pt-3 border-t border-surface-100">
+            <button type="button" className="btn-secondary" onClick={() => setPriceProduct(null)}>Cancel</button>
+            <button type="button" className="btn-primary" disabled={savingPrices} onClick={savePrices}>{savingPrices ? 'Saving…' : 'Save prices'}</button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ─── Add Product Modal ─── */}
       <Modal
