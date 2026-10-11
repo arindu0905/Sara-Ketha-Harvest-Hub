@@ -92,6 +92,12 @@ export const cropsApi = {
   getVarietiesByCategory: (categoryId: string) =>
     apiClient.get(`/crops/categories/${categoryId}`),
 
+  getHarvestEstimates: (cropId: string) =>
+    apiClient.get(`/crops/${cropId}/harvest-estimates`),
+
+  addHarvestEstimate: (cropId: string, data: Record<string, unknown>) =>
+    apiClient.post(`/crops/${cropId}/harvest-estimates`, data),
+
   uploadVarietyImage: (id: string, image: string) =>
     apiClient.post(`/crops/varieties/${id}/image`, { image }),
 

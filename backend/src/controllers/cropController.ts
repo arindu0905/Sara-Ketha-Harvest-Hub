@@ -201,6 +201,83 @@ export const getCrops = async (req: AuthenticatedRequest, res: Response, next: N
   } catch (e) { next(e); }
 };
 
+// ─── Harvest estimate history (table crop_harvest_estimates) ─────────────────
+export const HARVEST_REASONS = ['initial_estimate', 'weather', 'pests_disease', 'better_growth', 'slower_growth', 'water_shortage', 'labour_or_cost', 'market_timing', 'other'];
+
+/** Best-effort: never blocks the main action (e.g. when the table has not been created yet). */
+async function logHarvestEstimate(cropId: string, farmerId: string, date: string | null | undefined, qty: number | string | null | undefined, reason: string, note: string | null, userId?: string): Promise<void> {
+  if (!date) return;
+  try {
+    await supabaseAdmin.from('crop_harvest_estimates').insert({
+      crop_id: cropId, farmer_id: farmerId, expected_harvest_date: String(date).slice(0, 10),
+      expected_quantity_kg: qty ? Number(qty) : null, reason, note, recorded_by: userId ?? null,
+    });
+  } catch { /* history is optional */ }
+}
+
+const estimateTableMissing = (msg: string) => /crop_harvest_estimates|schema cache/i.test(msg);
+
+/** GET /api/crops/:id/harvest-estimates – every estimate of this crop, newest first. */
+export const listHarvestEstimates = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await assertCropAccess(req, req.params.id);
+    const { data, error } = await supabaseAdmin
+      .from('crop_harvest_estimates')
+      .select('*, profiles!recorded_by(full_name)')
+      .eq('crop_id', req.params.id)
+      .order('recorded_at', { ascending: false });
+    if (error) {
+      if (estimateTableMissing(error.message)) throw new AppError('Harvest history is not set up yet. Run RUN_9_crop_harvest_estimates.sql in the Supabase SQL editor.', 503);
+      throw new AppError(error.message, 500);
+    }
+    sendSuccess(res, { data: data || [] });
+  } catch (e) { next(e); }
+};
+
+/** POST /api/crops/:id/harvest-estimates – revise the expected harvest date / quantity and keep the history. */
+export const addHarvestEstimate = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await assertCropAccess(req, req.params.id);
+    const { expected_harvest_date, expected_quantity_kg, reason = 'other', note } = req.body || {};
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(expected_harvest_date || '')) || Number.isNaN(Date.parse(expected_harvest_date))) {
+      throw new AppError('A valid expected harvest date (YYYY-MM-DD) is required', 400);
+    }
+    if (!HARVEST_REASONS.includes(reason) || reason === 'initial_estimate') throw new AppError('Please choose a valid reason for the change', 400);
+    if (note !== undefined && note !== null && String(note).length > 500) throw new AppError('The note is too long (500 characters at most)', 400);
+
+    const { data: crop } = await supabaseAdmin.from('farmer_crops')
+      .select('id, farmer_id, planting_date, expected_harvest_date, expected_quantity_kg').eq('id', req.params.id).maybeSingle();
+    if (!crop) throw new AppError('Crop not found', 404);
+
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
+    if (expected_harvest_date < today) throw new AppError('The expected harvest date cannot be in the past', 400);
+    if (crop.planting_date && expected_harvest_date < String(crop.planting_date).slice(0, 10)) throw new AppError('The harvest date cannot be before the planting date', 400);
+    const maxDate = new Date(Date.parse(today) + 3 * 366 * 86400000).toISOString().slice(0, 10);
+    if (expected_harvest_date > maxDate) throw new AppError('The expected harvest date is too far ahead', 400);
+
+    let qty: number | null = crop.expected_quantity_kg ? Number(crop.expected_quantity_kg) : null;
+    if (expected_quantity_kg !== undefined && expected_quantity_kg !== null && expected_quantity_kg !== '') {
+      qty = Number(expected_quantity_kg);
+      if (!Number.isFinite(qty) || qty <= 0 || qty > 10_000_000) throw new AppError('Expected quantity must be a number greater than zero', 400);
+    }
+
+    const { data: estimate, error } = await supabaseAdmin.from('crop_harvest_estimates').insert({
+      crop_id: crop.id, farmer_id: crop.farmer_id, expected_harvest_date, expected_quantity_kg: qty,
+      reason, note: note ? String(note).trim() : null, recorded_by: req.user?.id ?? null,
+    }).select('*').single();
+    if (error) {
+      if (estimateTableMissing(error.message)) throw new AppError('Harvest history is not set up yet. Run RUN_9_crop_harvest_estimates.sql in the Supabase SQL editor.', 503);
+      throw new AppError(error.message, 500);
+    }
+
+    const { data: updated, error: updErr } = await supabaseAdmin.from('farmer_crops')
+      .update({ expected_harvest_date, expected_quantity_kg: qty, updated_at: new Date().toISOString() }).eq('id', crop.id).select('*').single();
+    if (updErr) throw new AppError(updErr.message, 500);
+    sendSuccess(res, { data: { estimate, crop: updated }, statusCode: 201, message: 'Harvest estimate updated' });
+  } catch (e) { next(e); }
+};
+
 export const createCrop = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const body = { ...req.body };
@@ -217,6 +294,7 @@ export const createCrop = async (req: AuthenticatedRequest, res: Response, next:
         crop_varieties!variety_id(name)
       `).single();
     if (error) throw new AppError(error.message, 500);
+    await logHarvestEstimate(data.id, data.farmer_id, data.expected_harvest_date, data.expected_quantity_kg, 'initial_estimate', 'Estimate recorded when the crop was registered', req.user?.id);
     sendSuccess(res, { data, statusCode: 201, message: 'Crop registered successfully' });
   } catch (e) { next(e); }
 };
@@ -241,6 +319,7 @@ export const updateCrop = async (req: AuthenticatedRequest, res: Response, next:
     await assertCropAccess(req, req.params.id);
     const updates = { ...req.body };
     if (req.user?.role === 'farmer') delete updates.farmer_id; // cannot be re-assigned to someone else
+    const { data: before } = await supabaseAdmin.from('farmer_crops').select('expected_harvest_date, expected_quantity_kg').eq('id', req.params.id).maybeSingle();
     const { data, error } = await supabaseAdmin
       .from('farmer_crops')
       .update(updates)
@@ -248,6 +327,11 @@ export const updateCrop = async (req: AuthenticatedRequest, res: Response, next:
       .select().single();
     if (error) throw new AppError(error.message, 500);
     if (!data) throw new AppError('Crop not found', 404);
+    const dateChanged = String(before?.expected_harvest_date ?? '').slice(0, 10) !== String(data.expected_harvest_date ?? '').slice(0, 10);
+    const qtyChanged = Number(before?.expected_quantity_kg ?? 0) !== Number(data.expected_quantity_kg ?? 0);
+    if (data.expected_harvest_date && (dateChanged || qtyChanged)) {
+      await logHarvestEstimate(data.id, data.farmer_id, data.expected_harvest_date, data.expected_quantity_kg, 'other', 'Changed in the crop details form', req.user?.id);
+    }
     sendSuccess(res, { data, message: 'Crop updated successfully' });
   } catch (e) { next(e); }
 };

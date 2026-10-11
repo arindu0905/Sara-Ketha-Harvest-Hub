@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom';
 import { farmersApi, cropsApi } from '../../services/api';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCategoryForLanguage } from '../../utils/categoryUtils';
-import { Leaf, Plus, Sprout, Calendar, Scale, Edit3, Trash2, RefreshCw } from 'lucide-react';
+import { Leaf, Plus, Sprout, Calendar, CalendarClock, Scale, Edit3, Trash2, RefreshCw } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
+import { HarvestEstimateModal } from '../../components/HarvestEstimateModal';
 import toast from 'react-hot-toast';
 
 interface CropRecord {
@@ -28,6 +29,7 @@ export const FarmerCrops: React.FC = () => {
   const queryClient = useQueryClient();
   const { t, language } = useLanguage();
   const [editingCrop, setEditingCrop] = useState<CropRecord | null>(null);
+  const [harvestCrop, setHarvestCrop] = useState<CropRecord | null>(null);
   const [editForm, setEditForm] = useState({
     cultivated_area_acres: '',
     planting_date: '',
@@ -212,6 +214,13 @@ export const FarmerCrops: React.FC = () => {
                   </span>
                   <div className="flex items-center gap-1">
                     <button
+                      onClick={() => setHarvestCrop(crop)}
+                      className="btn-ghost px-2 py-1.5 rounded-lg text-emerald-700 hover:bg-emerald-50 text-[11px] font-semibold flex items-center gap-1"
+                      title="Update expected harvest"
+                    >
+                      <CalendarClock size={13} /> Update harvest
+                    </button>
+                    <button
                       onClick={() => handleOpenEdit(crop)}
                       className="btn-ghost p-1.5 rounded-lg text-surface-600 hover:text-surface-900 hover:bg-surface-100"
                       title={t('edit_crop')}
@@ -359,6 +368,13 @@ export const FarmerCrops: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      <HarvestEstimateModal
+        crop={harvestCrop}
+        cropName={harvestCrop ? getCategoryDisplayName(harvestCrop) : ''}
+        onClose={() => setHarvestCrop(null)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ['farmer-crops', farmerId] })}
+      />
     </div>
   );
 };

@@ -17,6 +17,8 @@ import {
   getCropById,
   updateCrop,
   deleteCrop,
+  listHarvestEstimates,
+  addHarvestEstimate,
 } from '../controllers/cropController';
 import { authenticate, requireRole, validate } from '../middleware/auth';
 import { cropSchema, cropUpdateSchema } from '../schemas/validationSchemas';
@@ -40,6 +42,8 @@ router.delete('/categories/:id/image', requireRole('administrator'), removeCateg
 
 router.get('/', getCrops);
 router.post('/', requireRole('farmer', 'collection_centre_officer', 'administrator'), validate(cropSchema), createCrop);
+router.get('/:id/harvest-estimates', listHarvestEstimates);
+router.post('/:id/harvest-estimates', requireRole('farmer', 'collection_centre_officer', 'administrator'), addHarvestEstimate);
 router.get('/:id', getCropById);
 router.put('/:id', requireRole('farmer', 'collection_centre_officer', 'administrator'), validate(cropUpdateSchema), updateCrop);
 router.delete('/:id', requireRole('farmer', 'collection_centre_officer', 'administrator'), deleteCrop);
