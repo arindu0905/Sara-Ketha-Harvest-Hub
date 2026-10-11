@@ -5,6 +5,7 @@ import { Building2, RefreshCw, MapPin, Phone, Mail, UserCheck, Plus, Edit3, Powe
 import { Modal } from '../../components/ui/Modal';
 import { useLanguage } from '../../contexts/LanguageContext';
 import toast from 'react-hot-toast';
+import { validateOptionalPhone, validateOptionalEmail, validateOptionalPositive } from '../../utils/validators';
 
 interface CollectionCentre {
   id: string;
@@ -110,6 +111,12 @@ export const CollectionCentres: React.FC = () => {
     if (!form.code.trim()) return toast.error('Centre code is required');
     if (!form.address.trim()) return toast.error('Address is required');
     if (!form.district) return toast.error('Please select a district');
+    const phoneErr = validateOptionalPhone(form.phone);
+    if (phoneErr) return toast.error(phoneErr);
+    const emailErr = validateOptionalEmail(form.email);
+    if (emailErr) return toast.error(emailErr);
+    const capErr = validateOptionalPositive(String(form.capacity_kg ?? ''), 'Capacity');
+    if (capErr) return toast.error(capErr);
 
     const payload = {
       name: form.name,
@@ -325,11 +332,14 @@ export const CollectionCentres: React.FC = () => {
               </label>
               <input
                 type="tel"
+                inputMode="numeric"
+                maxLength={10}
                 value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="e.g. +94 77 1234567"
-                className="input w-full"
+                onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })}
+                placeholder="e.g. 0771234567"
+                className={`input w-full ${validateOptionalPhone(form.phone) ? 'border-red-400' : ''}`}
               />
+              {validateOptionalPhone(form.phone) && <p className="mt-1 text-xs text-red-600">{validateOptionalPhone(form.phone)}</p>}
             </div>
             <div>
               <label className="block text-sm font-semibold text-surface-700 mb-1.5">
@@ -340,8 +350,9 @@ export const CollectionCentres: React.FC = () => {
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="e.g. dambulla@harvesthub.lk"
-                className="input w-full"
+                className={`input w-full ${validateOptionalEmail(form.email) ? 'border-red-400' : ''}`}
               />
+              {validateOptionalEmail(form.email) && <p className="mt-1 text-xs text-red-600">{validateOptionalEmail(form.email)}</p>}
             </div>
           </div>
 

@@ -18,3 +18,13 @@ export const validateLicense = (value: string): string | null => {
   if (!/^[A-Z]{1,2}\d{4,8}$/i.test(value.trim())) return 'Licence number looks like B1234567 (1–2 letters followed by 4–8 digits)';
   return null;
 };
+
+/** Optional phone: empty is fine, otherwise 10 digits starting with 0. */
+export const validateOptionalPhone = (value: string): string | null =>
+  !value.trim() ? null : /^0\d{9}$/.test(value.trim()) ? null : 'Phone must be 10 digits starting with 0 (e.g. 0771234567)';
+
+export const validateOptionalEmail = (value: string): string | null =>
+  !value.trim() ? null : /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim()) ? null : 'Enter a valid e-mail address';
+
+export const validateOptionalPositive = (value: string, label: string): string | null =>
+  !value.trim() ? null : Number.isFinite(Number(value)) && Number(value) > 0 ? null : label + ' must be greater than zero';

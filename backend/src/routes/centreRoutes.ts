@@ -3,6 +3,7 @@ import { authenticate, requireRole } from '../middleware/auth';
 import { supabaseAdmin } from '../config/supabase';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/AppError';
+import { assertCentreContact } from '../utils/contactRules';
 
 const router = Router();
 router.use(authenticate);  // All routes require login
@@ -49,6 +50,7 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', requireRole('collection_centre_officer', 'administrator'), async (req: any, res, next) => {
   try {
     const { name, code, address, district, phone, email, capacity_kg } = req.body;
+    assertCentreContact(req.body);
 
     if (!name?.trim()) throw new AppError('Centre name is required', 400);
     if (!code?.trim()) throw new AppError('Centre code is required', 400);
@@ -87,6 +89,7 @@ router.post('/', requireRole('collection_centre_officer', 'administrator'), asyn
 router.put('/:id', requireRole('collection_centre_officer', 'administrator'), async (req: any, res, next) => {
   try {
     const { name, address, district, phone, email, capacity_kg, is_active } = req.body;
+    assertCentreContact(req.body);
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
     if (name !== undefined) updates.name = name.trim();

@@ -689,7 +689,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                       {/* Direct Action Link */}
                       <div className="pt-1.5 flex items-center justify-end">
                         <Link
-                          to="/farmer/register-crop"
+                          to={`/farmer/crops/register?crop=${encodeURIComponent(item.name)}`}
                           onClick={onClose}
                           className="inline-flex items-center gap-1 text-2xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-200/60 hover:bg-emerald-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                         >

@@ -5,6 +5,7 @@ import { AppError } from '../utils/AppError';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { rpcToAppError } from '../utils/rpcError';
 import { notifyUser, notifyRole } from '../services/notify';
+import { resolveSellingPrice, PriceRow } from '../services/pricing';
 
 /**
  * POST /api/orders
@@ -201,18 +202,11 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response, next
     // Insert order items
     // Buyers never set the price: it is the centre's current selling price for that crop and grade.
     // (Administrators may still supply one explicitly.)
+    const { data: activeRows } = await supabaseAdmin.from('crop_prices')
+      .select('category_id, variety_id, centre_id, grade, selling_price, effective_from, effective_until, status').eq('status', 'active');
     const priceFor = async (item: { category_id: string; variety_id?: string; grade?: string; unit_price_lkr?: number | string }): Promise<number | null> => {
       if (req.user?.role !== 'buyer' && item.unit_price_lkr) return parseFloat(String(item.unit_price_lkr)) || null;
-      // Use the grade the buyer asked for; if none was chosen (or that grade has no price) take the best available grade.
-      const grades = [item.grade, 'grade_a', 'grade_b', 'grade_c'].filter((g, i, arr): g is string => !!g && arr.indexOf(g) === i);
-      for (const grade of grades.length ? grades : [null]) {
-        const { data: rows } = await supabaseAdmin.rpc('get_current_price', {
-          p_category_id: item.category_id, p_grade: grade, p_centre_id: centre_id || null, p_variety_id: item.variety_id || null,
-        });
-        const p = Number(rows?.[0]?.selling_price);
-        if (Number.isFinite(p) && p > 0) return p;
-      }
-      return null;
+      return resolveSellingPrice((activeRows || []) as PriceRow[], { category_id: item.category_id, variety_id: item.variety_id || null, grade: item.grade || null, centre_id: centre_id || null });
     };
     const itemPrices = await Promise.all(items.map((i: any) => priceFor(i)));
 

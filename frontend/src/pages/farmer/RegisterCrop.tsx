@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,6 +42,7 @@ type CropForm = z.infer<typeof cropSchema>;
 
 export const RegisterCrop: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const { data: farmerData } = useQuery({
     queryKey: ['farmer-me'],
@@ -58,10 +59,23 @@ export const RegisterCrop: React.FC = () => {
 
   const categories = categoriesRes?.data?.data || [];
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<CropForm>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CropForm>({
     resolver: zodResolver(cropSchema),
     defaultValues: { farming_method: 'conventional' },
   });
+
+  // Opened from the crop advisor bot (?crop=Tomato): pre-select the matching product or category
+  const wantedCrop = (searchParams.get('crop') || '').trim().toLowerCase();
+  React.useEffect(() => {
+    if (!wantedCrop || categories.length === 0) return;
+    const clean = (x: string) => x.toLowerCase();
+    for (const c of categories) {
+      const v = (c.crop_varieties || []).find((x: any) => x.is_active && (clean(x.name) === wantedCrop || clean(x.name).startsWith(wantedCrop) || wantedCrop.startsWith(clean(x.name).replace(/s$/, ''))));
+      if (v) { setValue('category_id', c.id); setTimeout(() => setValue('variety_id', v.id), 0); return; }
+    }
+    const cat = categories.find((c: any) => clean(c.name) === wantedCrop);
+    if (cat) setValue('category_id', cat.id);
+  }, [wantedCrop, categories.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedCategory = watch('category_id');
   const plantingDate = watch('planting_date');

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatCategoryName } from '../../utils/categoryUtils';
+import { resolveSellingPrice } from '../../utils/pricing';
 
 interface OrderItem {
   category_id: string;
@@ -134,16 +135,10 @@ export const CreateOrder: React.FC = () => {
     return Number(entry.total_available || 0);
   };
 
-  const getSuggestedPrice = (categoryId: string, grade?: string) => {
-    if (!categoryId) return 0;
-    const match = activePrices.find(
-      (p: any) => p.category_id === categoryId && (!grade || p.grade === grade || !p.grade)
-    );
-    if (match?.selling_price) return parseFloat(match.selling_price);
-    const cat = categories.find((c: any) => c.id === categoryId);
-    if (cat?.base_price_per_kg) return parseFloat(cat.base_price_per_kg);
-    return 0;
-  };
+  // The price follows the chosen product, grade and centre (the same rule the server applies when the order is saved)
+  const getSuggestedPrice = (categoryId: string, grade?: string, varietyId?: string) =>
+    resolveSellingPrice(activePrices, { category_id: categoryId, variety_id: varietyId || null, grade: grade || null, centre_id: centreId || null }) ?? 0;
+  const money = (n: number) => n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const addItem = () => setItems([...items, { category_id: '', variety_id: '', grade: 'grade_a', requested_qty_kg: '' }]);
   const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
@@ -153,16 +148,8 @@ export const CreateOrder: React.FC = () => {
       prev.map((item, i) => {
         if (i !== idx) return item;
         const updated = { ...item, [field]: val };
-        // When category changes, reset variety and auto-fill price
-        if (field === 'category_id') {
-          updated.variety_id = '';
-          const suggested = getSuggestedPrice(val, item.grade);
-          updated.unit_price_lkr = suggested > 0 ? String(suggested) : '';
-        }
-        if (field === 'grade') {
-          const suggested = getSuggestedPrice(item.category_id, val);
-          if (suggested > 0) updated.unit_price_lkr = String(suggested);
-        }
+        // When the category changes the product no longer applies
+        if (field === 'category_id') updated.variety_id = '';
         return updated;
       })
     );
@@ -170,8 +157,8 @@ export const CreateOrder: React.FC = () => {
 
   const calculateItemTotal = (item: OrderItem) => {
     const qty = parseFloat(item.requested_qty_kg) || 0;
-    const price = getSuggestedPrice(item.category_id, item.grade) || 0;
-    return qty * price;
+    const price = getSuggestedPrice(item.category_id, item.grade, item.variety_id) || 0;
+    return Math.round(qty * price * 100) / 100;
   };
 
   const grandTotal = items.reduce((acc, item) => acc + calculateItemTotal(item), 0);
@@ -253,7 +240,7 @@ export const CreateOrder: React.FC = () => {
             ) : (
               <div className="space-y-5">
                 {items.map((item, idx) => {
-                  const suggestedPrice = getSuggestedPrice(item.category_id, item.grade);
+                  const suggestedPrice = getSuggestedPrice(item.category_id, item.grade, item.variety_id);
                   const lineTotal = calculateItemTotal(item);
                   const availableStock = getAvailableStock(item.category_id, item.grade);
                   const gradeStocks = item.category_id ? {
@@ -395,7 +382,7 @@ export const CreateOrder: React.FC = () => {
                         <div>
                           <label className="form-label text-xs font-semibold">Unit Price (LKR/kg)</label>
                           <div className="form-input text-sm bg-surface-50 text-surface-700 flex items-center justify-between">
-                            <span className="font-semibold">{suggestedPrice > 0 ? `LKR ${suggestedPrice.toLocaleString()}` : 'Set at approval'}</span>
+                            <span className="font-semibold">{suggestedPrice > 0 ? `LKR ${money(suggestedPrice)}` : 'Not set – confirmed at approval'}</span>
                             <span className="text-2xs text-surface-400">fixed by the centre</span>
                           </div>
                         </div>
@@ -404,13 +391,13 @@ export const CreateOrder: React.FC = () => {
                       {/* Line Total */}
                       <div className="flex items-center justify-between pt-2 border-t border-surface-200/60 text-xs">
                         <span className="text-surface-500">
-                          Unit Price: <strong className="text-surface-800">LKR {suggestedPrice || '—'}/kg</strong>
+                          Unit Price: <strong className="text-surface-800">{suggestedPrice > 0 ? `LKR ${money(suggestedPrice)}/kg` : '—'}</strong>
                           {suggestedPrice > 0 && (
                             <span className="ml-1.5 text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded text-2xs">Market Rate</span>
                           )}
                         </span>
                         <span className="font-bold text-surface-900 text-sm">
-                          Subtotal: {lineTotal > 0 ? `LKR ${lineTotal.toLocaleString()}` : '—'}
+                          Subtotal: {lineTotal > 0 ? `LKR ${money(lineTotal)}` : '—'}
                         </span>
                       </div>
                     </div>
@@ -519,7 +506,7 @@ export const CreateOrder: React.FC = () => {
                     <span className="truncate max-w-[130px]">
                       {cat ? formatCategoryName(cat) : '—'} ({item.grade?.replace('_', ' ')})
                     </span>
-                    <span className="font-medium">LKR {total.toLocaleString()}</span>
+                    <span className="font-medium">LKR {money(total)}</span>
                   </div>
                 ) : null;
               })}
@@ -527,7 +514,7 @@ export const CreateOrder: React.FC = () => {
               <div className="pt-3 border-t border-surface-200 flex justify-between items-baseline">
                 <span className="text-sm font-semibold text-surface-900">Estimated Total:</span>
                 <span className="text-xl font-extrabold text-primary-700 font-display">
-                  {grandTotal > 0 ? `LKR ${grandTotal.toLocaleString()}` : '—'}
+                  {grandTotal > 0 ? `LKR ${money(grandTotal)}` : '—'}
                 </span>
               </div>
             </div>

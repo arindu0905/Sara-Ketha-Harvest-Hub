@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { sendSuccess, paginatedResponse } from '../utils/response';
 import { AppError } from '../utils/AppError';
 import { USER_ROLES } from '../schemas/validationSchemas';
+import { assertCentreContact } from '../utils/contactRules';
 
 const router = Router();
 router.use(authenticate, requireRole('administrator'));
@@ -373,6 +374,7 @@ router.get('/centres', async (_req, res, next) => {
 router.post('/centres', async (req: any, res, next) => {
   try {
     const { name, code, address, district, phone, email, manager_id, capacity_kg } = req.body;
+    assertCentreContact(req.body);
     if (!name || !code || !address || !district) {
       throw new AppError('Name, code, address, and district are required', 400);
     }
@@ -417,6 +419,7 @@ router.post('/centres', async (req: any, res, next) => {
 // PUT update collection centre
 router.put('/centres/:id', async (req: any, res, next) => {
   try {
+    assertCentreContact(req.body || {});
     const CENTRE_EDITABLE = ['name', 'code', 'address', 'district', 'phone', 'email', 'manager_id', 'latitude', 'longitude', 'is_active', 'capacity_kg'];
     const payload: Record<string, unknown> = {
       ...Object.fromEntries(Object.entries(req.body || {}).filter(([k, v]) => CENTRE_EDITABLE.includes(k) && v !== undefined)),
