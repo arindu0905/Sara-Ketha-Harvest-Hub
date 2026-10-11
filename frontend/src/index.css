@@ -464,3 +464,18 @@
   .animate-dot-2 { animation: dotPulse 1.2s infinite 0.2s; }
   .animate-dot-3 { animation: dotPulse 1.2s infinite 0.4s; }
 }
+
+/* ── Sara Ketha Bot: playful visuals ─────────────────────────────── */
+@keyframes botWave { 0%, 60%, 100% { transform: rotate(0deg); } 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-8deg); } 50% { transform: rotate(10deg); } }
+@keyframes botFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes botGrow { 0% { transform: scale(0.6) translateY(6px); opacity: 0.4; } 50% { transform: scale(1.15) translateY(-3px); opacity: 1; } 100% { transform: scale(0.6) translateY(6px); opacity: 0.4; } }
+@keyframes botShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes botConfetti { 0% { transform: translateY(-20px) rotate(0deg); opacity: 1; } 100% { transform: translateY(520px) rotate(540deg); opacity: 0; } }
+@keyframes botPop { 0% { transform: scale(0.85); opacity: 0; } 70% { transform: scale(1.04); } 100% { transform: scale(1); opacity: 1; } }
+.bot-wave { display: inline-block; transform-origin: 70% 70%; animation: botWave 2.4s ease-in-out infinite; }
+.bot-float { animation: botFloat 3s ease-in-out infinite; }
+.bot-grow { display: inline-block; animation: botGrow 1.4s ease-in-out infinite; }
+.bot-pop { animation: botPop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.bot-shimmer { background: linear-gradient(90deg, #d1fae5 25%, #34d399 50%, #d1fae5 75%); background-size: 200% 100%; animation: botShimmer 1.6s linear infinite; }
+.bot-confetti { position: absolute; top: 0; width: 8px; height: 12px; border-radius: 2px; pointer-events: none; animation: botConfetti 2.6s ease-in forwards; }
+.bot-canvas { background-color: #f6faf7; background-image: radial-gradient(circle at 12% 18%, rgba(16,185,129,0.07) 0, transparent 22%), radial-gradient(circle at 88% 78%, rgba(245,158,11,0.07) 0, transparent 22%), radial-gradient(rgba(16,185,129,0.06) 1px, transparent 1px); background-size: auto, auto, 18px 18px; }

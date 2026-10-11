@@ -91,6 +91,64 @@ const CROP_LABELS: Record<string, CropOption> = {
 const cropOptionFor = (id: string): CropOption =>
   PREVIOUS_CROPS_OPTIONS.find((o) => o.id === id) || CROP_LABELS[id] || { id, en: id, si: id, ta: id };
 
+const CROP_EMOJI: Record<string, string> = {
+  Rice: '🌾', Tomato: '🍅', Carrot: '🥕', Cabbage: '🥬', Beans: '🫘', Potato: '🥔', Onion: '🧅', Chilli: '🌶️', Brinjal: '🍆',
+  Okra: '🌿', Bittergourd: '🥒', Ginger: '🫚', Maize: '🌽', Cowpea: '🫛', Pumpkin: '🎃', Watermelon: '🍉', Capsicum: '🫑',
+  Sesame: '🌱', Sugarcane: '🎋', Leeks: '🧄', Beetroot: '🟣', 'Leafy Vegetables': '🥬', None: '🌱',
+};
+const cropEmoji = (name: string): string =>
+  CROP_EMOJI[name] || Object.entries(CROP_EMOJI).find(([k]) => name.toLowerCase().includes(k.toLowerCase()))?.[1] || '🌱';
+
+const ZONE_STYLE: Record<string, { emoji: string; bar: string }> = {
+  'High Country': { emoji: '🏔️', bar: 'border-l-sky-500' },
+  'Mid Country': { emoji: '⛰️', bar: 'border-l-emerald-500' },
+  'Dry Zone': { emoji: '☀️', bar: 'border-l-amber-500' },
+  'Wet Zone': { emoji: '🌧️', bar: 'border-l-indigo-500' },
+};
+
+const SOIL_STYLE: Record<string, { emoji: string; tone: string }> = {
+  acidic: { emoji: '🍋', tone: 'from-amber-50 to-yellow-100 border-amber-200' },
+  slightly_acidic: { emoji: '🍃', tone: 'from-lime-50 to-green-100 border-lime-200' },
+  neutral: { emoji: '🌿', tone: 'from-emerald-50 to-teal-100 border-emerald-200' },
+  alkaline: { emoji: '🧪', tone: 'from-sky-50 to-blue-100 border-sky-200' },
+  unknown: { emoji: '🤔', tone: 'from-surface-50 to-surface-100 border-surface-200' },
+};
+
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+const STEPS = [
+  { emoji: '📍', en: 'Location', si: 'ස්ථානය', ta: 'இடம்' },
+  { emoji: '🌾', en: 'Last crop', si: 'පසුගිය බෝගය', ta: 'முந்தைய பயிர்' },
+  { emoji: '🧪', en: 'Soil', si: 'පස', ta: 'மண்' },
+  { emoji: '✨', en: 'Results', si: 'ප්‍රතිඵල', ta: 'முடிவுகள்' },
+];
+
+/** Circular suitability gauge. */
+const ScoreRing: React.FC<{ score: number }> = ({ score }) => {
+  const r = 20, c = 2 * Math.PI * r;
+  const colour = score >= 75 ? '#059669' : score >= 55 ? '#d97706' : '#ea580c';
+  return (
+    <div className="relative w-14 h-14 shrink-0">
+      <svg viewBox="0 0 48 48" className="w-14 h-14 -rotate-90">
+        <circle cx="24" cy="24" r={r} fill="none" stroke="#e5e7eb" strokeWidth="5" />
+        <circle cx="24" cy="24" r={r} fill="none" stroke={colour} strokeWidth="5" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - Math.max(0, Math.min(100, score)) / 100)} style={{ transition: 'stroke-dashoffset 0.9s ease' }} />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[13px] font-extrabold" style={{ color: colour }}>{score}</span>
+    </div>
+  );
+};
+
+/** One-shot celebration when the recommendations appear. */
+const Confetti: React.FC = () => (
+  <div className="absolute inset-x-0 top-0 h-0 overflow-visible pointer-events-none z-10" aria-hidden>
+    {Array.from({ length: 22 }).map((_, i) => (
+      <span key={i} className="bot-confetti"
+        style={{ left: `${(i * 4.7) % 100}%`, animationDelay: `${(i % 7) * 0.12}s`, background: ['#10b981', '#f59e0b', '#38bdf8', '#f472b6', '#a78bfa'][i % 5] }} />
+    ))}
+  </div>
+);
+
 interface SoilOption { id: string; ph: number | null; en: string; si: string; ta: string }
 const SOIL_OPTIONS: SoilOption[] = [
   { id: 'acidic', ph: 5.0, en: 'Acidic (pH below 5.5)', si: 'අම්ල (pH 5.5 ට අඩු)', ta: 'அமிலத் தன்மை (pH 5.5க்குக் கீழ்)' },
@@ -344,12 +402,15 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
       }`}
     >
       {/* ─── Header bar with rich actions & transitions ───────────────────────── */}
-      <div className="bg-gradient-to-r from-emerald-800 via-primary-800 to-emerald-900 p-3.5 text-white flex items-center justify-between shadow-md relative overflow-hidden shrink-0">
-        <div className="absolute -right-8 -bottom-8 w-24 h-24 bg-white/5 rounded-full blur-xl pointer-events-none" />
+      <div className="bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-900 p-3.5 text-white flex items-center justify-between shadow-md relative overflow-hidden shrink-0">
+        <div className="absolute -right-8 -bottom-8 w-28 h-28 bg-amber-300/15 rounded-full blur-xl pointer-events-none" />
+        <div className="absolute -left-6 -top-8 w-24 h-24 bg-emerald-300/10 rounded-full blur-xl pointer-events-none" />
+        <span className="absolute right-24 top-1 text-lg opacity-20 bot-float pointer-events-none">🍃</span>
+        <span className="absolute right-40 bottom-0 text-sm opacity-20 bot-float pointer-events-none" style={{ animationDelay: '0.8s' }}>🌾</span>
 
         <div className="flex items-center gap-2.5 relative z-10">
           <div className="relative w-9 h-9 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
-            <Bot size={20} className="text-emerald-300 animate-pulse" />
+            <span className="text-xl bot-wave">🌱</span>
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-900" />
           </div>
           <div>
@@ -357,7 +418,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
               Sara Ketha Bot <Sparkles size={14} className="text-amber-300" />
             </h3>
             <span className="text-[10px] text-emerald-200/90 flex items-center gap-1 font-medium">
-              <Activity size={10} className="text-emerald-400 animate-pulse" /> Transparent scoring model
+              <Activity size={10} className="text-emerald-300 animate-pulse" /> Your friendly farming buddy
             </span>
           </div>
         </div>
@@ -430,17 +491,50 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
         </div>
       </div>
 
+      {/* ─── Progress steps ──────────────────────────────────────────────────── */}
+      <div className="px-4 py-2.5 bg-white border-b border-surface-100 shrink-0">
+        {(() => {
+          const current = step === 'greeting' || step === 'district' ? 0 : step === 'prev_crop' ? 1 : step === 'soil' ? 2 : step === 'loading' ? 3 : 4;
+          return (
+            <div className="flex items-center">
+              {STEPS.map((st, i) => {
+                const done = i < current, active = i === current;
+                return (
+                  <React.Fragment key={st.en}>
+                    <div className="flex flex-col items-center gap-0.5 min-w-[54px]">
+                      <span className={`w-8 h-8 rounded-full flex items-center justify-center text-base border-2 transition-all ${
+                        done ? 'bg-emerald-500 border-emerald-500 text-white' : active ? 'bg-emerald-50 border-emerald-500 shadow-md scale-110' : 'bg-surface-50 border-surface-200 grayscale opacity-60'}`}>
+                        {done ? '✓' : st.emoji}
+                      </span>
+                      <span className={`text-[10px] font-semibold ${active ? 'text-emerald-700' : done ? 'text-emerald-600' : 'text-surface-400'}`}>
+                        {st[language as 'en' | 'si' | 'ta'] || st.en}
+                      </span>
+                    </div>
+                    {i < STEPS.length - 1 && <div className={`flex-1 h-0.5 rounded-full mb-4 mx-1 ${i < current ? 'bg-emerald-500' : 'bg-surface-200'}`} />}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+
       {/* ─── Messages Scroll Area ────────────────────────────────────────────── */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-surface-50">
+      <div className="flex-1 p-4 overflow-y-auto space-y-4 bot-canvas">
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex flex-col animate-msg-in ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
           >
+            {msg.sender === 'bot' && (
+              <span className="text-[10px] font-semibold text-emerald-700 mb-1 ml-1 flex items-center gap-1">
+                <span className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center text-[9px]">🌱</span> Sara Ketha
+              </span>
+            )}
             <div
               className={`max-w-[88%] rounded-2xl p-3.5 text-sm leading-relaxed transition-all duration-200 ${
                 msg.sender === 'user'
-                  ? 'bg-primary-600 text-white rounded-br-none shadow-sm'
+                  ? 'bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-br-none shadow-md'
                   : 'bg-white text-surface-900 border border-surface-200/90 rounded-bl-none shadow-card'
               }`}
             >
@@ -471,7 +565,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                             : 'bg-surface-100 text-surface-600 hover:bg-surface-200'
                         }`}
                       >
-                        {z}
+                        {z === 'All' ? '🇱🇰 All' : `${ZONE_STYLE[z]?.emoji ?? ''} ${z}`}
                       </button>
                     ))}
                   </div>
@@ -501,10 +595,10 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                         <button
                           key={dist.id}
                           onClick={() => handleSelectDistrict(dist)}
-                          className="btn-ghost text-xs py-2 px-2.5 rounded-xl border border-surface-200/80 hover:border-primary-500 hover:bg-primary-50 text-surface-800 text-left flex items-center gap-1.5 transition-all transform hover:-translate-y-0.5 active:translate-y-0 truncate cursor-pointer shadow-2xs"
+                          className={`bot-pop text-xs py-2 px-2.5 rounded-xl border border-surface-200/80 border-l-4 ${ZONE_STYLE[dist.zone || 'Wet Zone'].bar} bg-white hover:bg-emerald-50 hover:shadow-md text-surface-800 text-left flex items-center gap-1.5 transition-all transform hover:-translate-y-0.5 active:translate-y-0 truncate cursor-pointer`}
                           title={distName}
                         >
-                          <MapPin size={12} className="text-primary-600 shrink-0" />
+                          <span className="text-sm shrink-0">{ZONE_STYLE[dist.zone || 'Wet Zone'].emoji}</span>
                           <span className="truncate font-medium">{distName}</span>
                         </button>
                       );
@@ -570,17 +664,17 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                         ? `Or pick a crop commonly grown in ${selectedDistrictName}:`
                         : 'Or select a quick common option:'}
                     </span>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-3 gap-2">
                       {[...(districtCrops && districtCrops.length ? districtCrops.map(cropOptionFor) : PREVIOUS_CROPS_OPTIONS.filter((o) => o.id !== 'None')), PREVIOUS_CROPS_OPTIONS.find((o) => o.id === 'None')!].map((crop) => {
                         const cropName = crop[language as 'en' | 'si' | 'ta'] || crop.en;
                         return (
                           <button
                             key={crop.id}
                             onClick={() => handleSelectPrevCrop(crop)}
-                            className="btn-ghost text-xs py-2 px-2.5 rounded-xl border border-surface-200 hover:border-primary-500 hover:bg-primary-50 text-surface-800 text-left flex items-center gap-1.5 transition-all transform hover:-translate-y-0.5 truncate cursor-pointer"
+                            className="bot-pop group flex flex-col items-center justify-center gap-1 py-2.5 px-1.5 rounded-2xl border border-surface-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 hover:shadow-md transition-all transform hover:-translate-y-0.5 cursor-pointer"
                           >
-                            <History size={12} className="text-primary-600 shrink-0" />
-                            <span className="truncate font-medium">{cropName}</span>
+                            <span className="text-2xl group-hover:scale-125 transition-transform">{cropEmoji(crop.id)}</span>
+                            <span className="text-[11px] font-semibold text-surface-800 text-center leading-tight">{cropName}</span>
                           </button>
                         );
                       })}
@@ -592,17 +686,18 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
               {/* Soil condition options */}
               {msg.type === 'input_soil' && step === 'soil' && (
                 <div className="mt-3 pt-3 border-t border-surface-100 space-y-3 animate-msg-in">
-                  <div className="grid grid-cols-1 gap-1.5">
+                  <div className="grid grid-cols-2 gap-2">
                     {SOIL_OPTIONS.map((opt) => {
                       const label = opt[language as 'en' | 'si' | 'ta'] || opt.en;
+                      const look = SOIL_STYLE[opt.id] || SOIL_STYLE.unknown;
                       return (
                         <button
                           key={opt.id}
                           onClick={() => submitSoil(opt.ph, label)}
-                          className="btn-ghost text-xs py-2 px-2.5 rounded-xl border border-surface-200 hover:border-primary-500 hover:bg-primary-50 text-surface-800 text-left flex items-center gap-1.5 transition-all cursor-pointer"
+                          className={`bot-pop flex items-center gap-2 text-left p-2.5 rounded-2xl border bg-gradient-to-br ${look.tone} hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer ${opt.id === 'unknown' ? 'col-span-2' : ''}`}
                         >
-                          <Droplets size={12} className="text-primary-600 shrink-0" />
-                          <span className="font-medium">{label}</span>
+                          <span className="text-2xl shrink-0">{look.emoji}</span>
+                          <span className="text-[11px] font-semibold text-surface-800 leading-snug">{label}</span>
                         </button>
                       );
                     })}
@@ -630,7 +725,8 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
 
               {/* Crop Recommendations Cards with Actions */}
               {msg.type === 'recommendations' && msg.data && (
-                <div className="mt-3 space-y-2.5 animate-msg-in">
+                <div className="mt-3 space-y-2.5 animate-msg-in relative">
+                  <Confetti />
                   {/* AI Source Badge */}
                   <div className="flex items-center gap-2 mb-1">
                     {(msg as any).aiPowered ? (
@@ -653,79 +749,73 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                     </div>
                   )}
 
-                  {msg.data.map((item: any) => (
+                  {msg.data.map((item: any, idx: number) => (
                     <div
                       key={item.rank}
-                      className="p-3.5 bg-gradient-to-br from-emerald-50/90 to-emerald-100/50 border border-emerald-200/90 rounded-2xl space-y-2 hover:border-emerald-500 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5"
+                      className={`bot-pop relative p-3.5 rounded-2xl space-y-2.5 border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+                        item.rank === 1
+                          ? 'bg-gradient-to-br from-amber-50 via-emerald-50 to-emerald-100 border-amber-300 shadow-md'
+                          : 'bg-gradient-to-br from-emerald-50/90 to-emerald-100/50 border-emerald-200/90'}`}
+                      style={{ animationDelay: `${idx * 0.12}s` }}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 bg-emerald-600 text-white font-bold text-xs rounded-full flex items-center justify-center shadow-xs">
-                            #{item.rank}
-                          </span>
-                          <span className="font-bold text-emerald-950 text-base">{item.name}</span>
-                          {item.ai_powered && (
-                            <span title="AI recommended" className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center">
-                              <Sparkles size={9} />
-                            </span>
-                          )}
+                      {item.rank === 1 && (
+                        <span className="absolute -top-2 left-3 text-[10px] font-extrabold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full shadow">⭐ BEST MATCH</span>
+                      )}
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-white border border-emerald-200 shadow-inner flex items-center justify-center text-3xl shrink-0 bot-float" style={{ animationDelay: `${idx * 0.3}s` }}>
+                          {cropEmoji(item.name)}
                         </div>
-                        <span className="text-xs font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs">
-                          {item.suitability_score}/100 suitability
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-lg leading-none">{MEDALS[item.rank - 1] || `#${item.rank}`}</span>
+                            <span className="font-bold text-emerald-950 text-base truncate">{item.name}</span>
+                            {item.ai_powered && (
+                              <span title="AI recommended" className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center shrink-0"><Sparkles size={9} /></span>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-semibold text-emerald-700 mt-0.5">
+                            {item.suitability_score >= 75 ? 'Excellent fit' : item.suitability_score >= 55 ? 'Good fit' : 'Possible, with care'}
+                          </p>
+                        </div>
+                        <ScoreRing score={item.suitability_score} />
                       </div>
 
-                      {/* Suitability Score Progress Bar */}
-                      <div className="w-full bg-emerald-200/60 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-emerald-600 h-1.5 rounded-full transition-all duration-500"
-                          style={{ width: `${item.suitability_score}%` }}
-                        />
-                      </div>
-
-                      <p className="text-xs text-emerald-900/90 leading-snug pt-0.5">{item.rationale}</p>
+                      <p className="text-xs text-emerald-900/90 leading-snug">{item.rationale}</p>
 
                       {Array.isArray(item.score_breakdown) && (
-                        <details className="text-[10px] text-emerald-900/80">
-                          <summary className="cursor-pointer font-semibold">Why this score?</summary>
-                          <ul className="mt-1 space-y-0.5">
+                        <details className="text-[10px] text-emerald-900/80 bg-white/60 rounded-xl px-2.5 py-1.5 border border-emerald-100">
+                          <summary className="cursor-pointer font-semibold">🔍 Why this score?</summary>
+                          <div className="mt-1.5 space-y-1.5">
                             {item.score_breakdown.map((f: any) => (
-                              <li key={f.name}><b>{f.name.replace('_', ' ')}</b> {f.points}/{f.max} – {f.note}</li>
+                              <div key={f.name}>
+                                <div className="flex justify-between"><b className="capitalize">{f.name.replace('_', ' ')}</b><span>{f.points}/{f.max}</span></div>
+                                <div className="h-1 rounded-full bg-emerald-100 overflow-hidden"><div className="h-1 rounded-full bg-emerald-500" style={{ width: `${(f.points / f.max) * 100}%` }} /></div>
+                                <p className="text-[9px] text-emerald-800/70">{f.note}</p>
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         </details>
                       )}
 
-                      {/* Season / Water / Profitability Tags */}
-                      <div className="flex flex-wrap gap-1 pt-0.5">
+                      <div className="flex flex-wrap gap-1">
                         {item.season && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-200">
-                            📅 {item.season}
-                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">📅 {item.season}</span>
                         )}
                         {item.water_need && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded-full border border-sky-200">
-                            💧 {item.water_need} water
-                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full border border-sky-200">💧 {item.water_need} water</span>
                         )}
                         {item.profitability && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold bg-violet-100 text-violet-800 px-1.5 py-0.5 rounded-full border border-violet-200">
-                            💰 {item.profitability} profit
-                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full border border-violet-200">💰 {item.profitability} profit</span>
                         )}
                       </div>
 
-                      {/* Direct Action Link */}
-                      <div className="pt-1.5 flex items-center justify-end">
-                        <Link
-                          to={`/farmer/crops/register?crop=${encodeURIComponent(item.name)}`}
-                          onClick={onClose}
-                          className="inline-flex items-center gap-1 text-2xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-200/60 hover:bg-emerald-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <span>Register {item.name}</span>
-                          <ArrowRight size={11} />
-                        </Link>
-                      </div>
+                      <Link
+                        to={`/farmer/crops/register?crop=${encodeURIComponent(item.name)}`}
+                        onClick={onClose}
+                        className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-3 py-2 rounded-xl shadow-md transition-all cursor-pointer"
+                      >
+                        <Sprout size={13} /> <span>Register {item.name}</span> <ArrowRight size={12} />
+                      </Link>
                     </div>
                   ))}
                 </div>
@@ -735,17 +825,23 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
           </div>
         ))}
 
-        {/* Animated Neural Typing Indicator */}
+        {/* Growing-plant loading animation */}
         {isSubmitting && (
-          <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-surface-200 shadow-xs max-w-[85%] animate-msg-in">
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-emerald-600 rounded-full animate-dot-1" />
-              <span className="w-2 h-2 bg-emerald-600 rounded-full animate-dot-2" />
-              <span className="w-2 h-2 bg-emerald-600 rounded-full animate-dot-3" />
+          <div className="flex items-center gap-3 bg-white p-3.5 rounded-2xl border border-emerald-200 shadow-md max-w-[88%] animate-msg-in">
+            <div className="flex items-end gap-1 text-2xl">
+              <span className="bot-grow" style={{ animationDelay: '0s' }}>🌱</span>
+              <span className="bot-grow" style={{ animationDelay: '0.25s' }}>🌿</span>
+              <span className="bot-grow" style={{ animationDelay: '0.5s' }}>🌳</span>
             </div>
-            <span className="text-xs font-semibold text-surface-600">
-              Gemini AI analyzing optimal crop patterns for your region...
-            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-emerald-800">
+                {language === 'si' ? 'ඔබේ බෝග නිර්දේශ වගා කරමින්…' : language === 'ta' ? 'உங்கள் பயிர் பரிந்துரைகளை வளர்த்து வருகிறோம்…' : 'Growing your crop recommendations…'}
+              </p>
+              <div className="mt-1.5 h-1.5 rounded-full bot-shimmer" />
+              <p className="text-[10px] text-surface-400 mt-1">
+                {language === 'si' ? 'දිස්ත්‍රික්කය, පස සහ බෝග මාරුව විශ්ලේෂණය කරමින්' : language === 'ta' ? 'மாவட்டம், மண் மற்றும் பயிர் சுழற்சியை ஆராய்கிறது' : 'Checking your district, soil and crop rotation'}
+              </p>
+            </div>
           </div>
         )}
         <div ref={messagesEndRef} />
