@@ -10,6 +10,8 @@ import toast from 'react-hot-toast';
 interface CropPrice {
   id: string;
   category_id: string;
+  variety_id?: string | null;
+  crop_varieties?: { id: string; name: string } | null;
   grade: string;
   purchase_price: number;
   selling_price: number;
@@ -33,6 +35,7 @@ const UNITS = ['kg', 'mt', 'bushel'];
 
 const INITIAL_FORM = {
   category_id: '',
+  variety_id: '',
   grade: 'grade_a',
   purchase_price: '',
   selling_price: '',
@@ -56,6 +59,14 @@ export const PriceManagement: React.FC = () => {
     queryKey: ['crop-categories'],
     queryFn: () => cropsApi.getCategories(),
   });
+
+  // products (varieties) of the chosen category, so a price can be set per product
+  const { data: categoryRes } = useQuery({
+    queryKey: ['crop-category', form.category_id],
+    queryFn: () => cropsApi.getCategoryById(form.category_id),
+    enabled: !!form.category_id,
+  });
+  const products: { id: string; name: string; is_active: boolean }[] = (categoryRes?.data?.data?.crop_varieties || []).filter((v: any) => v.is_active !== false);
 
   const prices: CropPrice[] = response?.data?.data || [];
   const categories: CropCategory[] = categoriesRes?.data?.data || [];
@@ -116,6 +127,7 @@ export const PriceManagement: React.FC = () => {
     setEditingPrice(p);
     setForm({
       category_id: p.category_id,
+      variety_id: p.variety_id || '',
       grade: p.grade,
       purchase_price: p.purchase_price ? p.purchase_price.toString() : '',
       selling_price: p.selling_price ? p.selling_price.toString() : '',
@@ -144,6 +156,7 @@ export const PriceManagement: React.FC = () => {
 
     const payload = {
       category_id: form.category_id,
+      variety_id: form.variety_id || null,
       grade: form.grade,
       purchase_price: purchasePrice,
       selling_price: sellingPrice,
@@ -213,6 +226,7 @@ export const PriceManagement: React.FC = () => {
               <thead>
                 <tr className="bg-surface-50 border-b border-surface-200 text-xs font-semibold text-surface-600 uppercase tracking-wider">
                   <th className="py-3 px-4">{t('crop_categories')}</th>
+                  <th className="py-3 px-4">Product</th>
                   <th className="py-3 px-4">{t('grade')}</th>
                   <th className="py-3 px-4">{t('purchase_price')}</th>
                   <th className="py-3 px-4">{t('selling_price')}</th>
@@ -228,6 +242,9 @@ export const PriceManagement: React.FC = () => {
                     <tr key={p.id} className="hover:bg-surface-50/80">
                       <td className="py-3.5 px-4 font-semibold text-surface-900">
                         {formatCategoryName(p.crop_categories) || 'Crop'}
+                      </td>
+                      <td className="py-3.5 px-4 text-sm text-surface-700">
+                        {p.crop_varieties?.name || <span className="text-surface-400">All products</span>}
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 uppercase">
@@ -296,7 +313,7 @@ export const PriceManagement: React.FC = () => {
             </label>
             <select
               value={form.category_id}
-              onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+              onChange={(e) => setForm({ ...form, category_id: e.target.value, variety_id: '' })}
               className="input w-full"
             >
               <option value="">Select a category...</option>
@@ -304,6 +321,22 @@ export const PriceManagement: React.FC = () => {
                 <option key={c.id} value={c.id}>{formatCategoryName(c)}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-surface-700 mb-1.5">Product</label>
+            <select
+              value={form.variety_id}
+              onChange={(e) => setForm({ ...form, variety_id: e.target.value })}
+              className="input w-full"
+              disabled={!form.category_id}
+            >
+              <option value="">All products in this category</option>
+              {products.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-surface-400">A price for one product overrides the category price for that product.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
