@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -43,10 +44,12 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  // Rendered into document.body so a transformed page container (animations) cannot shrink the overlay:
+  // the dim + blur must cover the whole window, header and sidebar included.
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
@@ -95,6 +98,7 @@ export const Modal: React.FC<ModalProps> = ({
           }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 };
