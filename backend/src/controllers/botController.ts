@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/AppError';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { rankCrops, parseSoilPh, ScoredCrop } from '../services/cropAdvisor';
+import { rankCrops, parseSoilPh, ScoredCrop, CROP_REQUIREMENTS } from '../services/cropAdvisor';
 
 // ─── Gemini AI Client ────────────────────────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
@@ -782,8 +782,12 @@ function resolveDistrict(input: string): string | null {
 }
 
 // ─── Normalise Previous Crop Input ───────────────────────────────────────────
+const KNOWN_CROPS = [...Object.keys(CROP_REQUIREMENTS), 'Sugarcane', 'Sesame', 'Leeks', 'Beetroot', 'Leafy Vegetables', 'Capsicum'];
 function resolvePreviousCrop(input: string): string {
   const lower = (input || '').toLowerCase().trim();
+  // an exact crop name (e.g. picked from the district list) is used as it is
+  const exact = KNOWN_CROPS.find((k) => k.toLowerCase() === lower);
+  if (exact) return exact;
   if (!lower || lower === 'none' || lower === 'nothing' || lower === 'first' || lower === 'new') return 'None';
   if (lower.includes('rice') || lower.includes('paddy') || lower.includes('goyan') || lower.includes('நெல்')) return 'Rice';
   if (lower.includes('tomato') || lower.includes('takkali') || lower.includes('தக்காளி')) return 'Tomato';
@@ -830,6 +834,22 @@ Respond ONLY as JSON: {"rationales": ["...", "..."]}. ${langInstruction}`;
 }
 
 // ─── Controller: Get Prompt ───────────────────────────────────────────────────
+/**
+ * GET /api/bot/district-crops?district=Colombo
+ * The crops that are typically grown in a district (its primary crops plus the usual preceding crops of its
+ * rotation tables), so the bot only offers options that make sense for the farmer's location.
+ */
+export const getDistrictCrops = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const name = resolveDistrict(String(req.query.district || ''));
+    if (!name) throw new AppError('Unknown district', 400);
+    const profile = DISTRICT_PROFILES[name];
+    const crops = Array.from(new Set([...profile.primaryCrops, ...Object.keys(profile.topRecommendations || {})]))
+      .filter((c) => c && c !== 'None');
+    sendSuccess(res, { data: { district: name, zone: profile.zone, rainfall: profile.rainfall, crops } });
+  } catch (e) { next(e); }
+};
+
 export const getBotInteractionPrompt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const lang = ((req.query.lang as string) || 'en').toLowerCase() as 'en' | 'si' | 'ta';

@@ -70,6 +70,27 @@ const PREVIOUS_CROPS_OPTIONS: CropOption[] = [
   { id: 'None', en: 'None / First Time', si: 'මුකුත් නැත / පළමු වතාව', ta: 'எதுவுமில்லை' },
 ];
 
+// Names for the crops that can appear in a district's list (the first seven are also in PREVIOUS_CROPS_OPTIONS)
+const CROP_LABELS: Record<string, CropOption> = {
+  Chilli: { id: 'Chilli', en: 'Chilli', si: 'මිරිස්', ta: 'மிளகாய்' },
+  Brinjal: { id: 'Brinjal', en: 'Brinjal', si: 'වම්බටු', ta: 'கத்தரிக்காய்' },
+  Okra: { id: 'Okra', en: 'Okra', si: 'බණ්ඩක්කා', ta: 'வெண்டைக்காய்' },
+  Bittergourd: { id: 'Bittergourd', en: 'Bitter Gourd', si: 'කරවිල', ta: 'பாகற்காய்' },
+  Ginger: { id: 'Ginger', en: 'Ginger', si: 'ඉඟුරු', ta: 'இஞ்சி' },
+  Maize: { id: 'Maize', en: 'Maize', si: 'ඉරිඟු', ta: 'சோளம்' },
+  Cowpea: { id: 'Cowpea', en: 'Cowpea', si: 'කව්පි', ta: 'காராமணி' },
+  Pumpkin: { id: 'Pumpkin', en: 'Pumpkin', si: 'වට්ටක්කා', ta: 'பூசணி' },
+  Watermelon: { id: 'Watermelon', en: 'Watermelon', si: 'කොමඩු', ta: 'தர்பூசணி' },
+  Capsicum: { id: 'Capsicum', en: 'Capsicum', si: 'කැප්සිකම්', ta: 'குடைமிளகாய்' },
+  Sesame: { id: 'Sesame', en: 'Sesame', si: 'තල', ta: 'எள்' },
+  Sugarcane: { id: 'Sugarcane', en: 'Sugarcane', si: 'උක්', ta: 'கரும்பு' },
+  Leeks: { id: 'Leeks', en: 'Leeks', si: 'ලීක්ස්', ta: 'லீக்ஸ்' },
+  Beetroot: { id: 'Beetroot', en: 'Beetroot', si: 'බීට්රූට්', ta: 'பீட்ரூட்' },
+  'Leafy Vegetables': { id: 'Leafy Vegetables', en: 'Leafy Vegetables', si: 'කොළ පලා', ta: 'கீரை' },
+};
+const cropOptionFor = (id: string): CropOption =>
+  PREVIOUS_CROPS_OPTIONS.find((o) => o.id === id) || CROP_LABELS[id] || { id, en: id, si: id, ta: id };
+
 interface SoilOption { id: string; ph: number | null; en: string; si: string; ta: string }
 const SOIL_OPTIONS: SoilOption[] = [
   { id: 'acidic', ph: 5.0, en: 'Acidic (pH below 5.5)', si: 'අම්ල (pH 5.5 ට අඩු)', ta: 'அமிலத் தன்மை (pH 5.5க்குக் கீழ்)' },
@@ -87,6 +108,8 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
   const [soilPhError, setSoilPhError] = useState('');
   const [selectedDistrictId, setSelectedDistrictId] = useState('');
   const [selectedDistrictName, setSelectedDistrictName] = useState('');
+  // crops typically grown in the chosen district (null = not loaded -> show the general list)
+  const [districtCrops, setDistrictCrops] = useState<string[] | null>(null);
   const [selectedPrevCrop, setSelectedPrevCrop] = useState('');
   const [customCropInput, setCustomCropInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -146,6 +169,10 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
     const localizedName = distItem[language as 'en' | 'si' | 'ta'] || distItem.en;
     setSelectedDistrictId(distItem.id);
     setSelectedDistrictName(localizedName);
+    setDistrictCrops(null);
+    apiClient.get('/bot/district-crops', { params: { district: distItem.id } })
+      .then((r) => setDistrictCrops(r.data?.data?.crops || null))
+      .catch(() => setDistrictCrops(null));
 
     const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: localizedName };
     
@@ -539,10 +566,12 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
                         ? 'හෝ පහත ඉක්මන් තේරීම් වලින් එකක් තෝරන්න:'
                         : language === 'ta'
                         ? 'அல்லது விரைவுத் தேர்வுகளில் ஒன்றைத் தேர்ந்தெடுக்கவும்:'
+                        : districtCrops && districtCrops.length
+                        ? `Or pick a crop commonly grown in ${selectedDistrictName}:`
                         : 'Or select a quick common option:'}
                     </span>
                     <div className="grid grid-cols-2 gap-1.5">
-                      {PREVIOUS_CROPS_OPTIONS.map((crop) => {
+                      {[...(districtCrops && districtCrops.length ? districtCrops.map(cropOptionFor) : PREVIOUS_CROPS_OPTIONS.filter((o) => o.id !== 'None')), PREVIOUS_CROPS_OPTIONS.find((o) => o.id === 'None')!].map((crop) => {
                         const cropName = crop[language as 'en' | 'si' | 'ta'] || crop.en;
                         return (
                           <button

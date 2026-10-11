@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate, requireRole } from '../middleware/auth';
-import { getBotInteractionPrompt, predictCropRecommendations } from '../controllers/botController';
+import { getBotInteractionPrompt, predictCropRecommendations, getDistrictCrops } from '../controllers/botController';
 
 const router = Router();
 
@@ -18,6 +18,9 @@ router.use(authenticate, requireRole('farmer', 'collection_centre_officer'));
 
 // GET /api/bot/prompt - localized conversational prompts
 router.get('/prompt', getBotInteractionPrompt);
+
+// GET /api/bot/district-crops?district=... - crops typically grown in the chosen district
+router.get('/district-crops', getDistrictCrops);
 
 // POST /api/bot/recommend - suitability-scored crop recommendations (see services/cropAdvisor.ts)
 router.post('/recommend', recommendLimiter, predictCropRecommendations);
