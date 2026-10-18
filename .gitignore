@@ -47,3 +47,6 @@ coverage/
 
 # Exported copy of real database data (contains personal details) - never commit
 docs/database-readable/
+
+# Showcase video files and the screenshots used to make them (large, contain demo data)
+docs/showcase/

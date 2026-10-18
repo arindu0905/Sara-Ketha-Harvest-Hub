@@ -78,6 +78,8 @@ const generalLimiter = rateLimit({
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: config.rateLimit.authMaxRequests,
+  // Only sign-in style requests count. GET /api/auth/me runs on every page load and must not lock users out.
+  skip: (req) => req.method === 'GET',
   message: {
     success: false,
     message: 'Too many authentication attempts. Please try again later.',
