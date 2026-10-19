@@ -173,7 +173,7 @@ export function AuctionPaymentPage() {
             <div className="bg-blue-50 rounded-xl p-4 text-xs text-blue-800 space-y-1">
               <p className="font-semibold text-sm mb-2">Bank Transfer Details</p>
               <p>Bank: Bank of Ceylon / People's Bank</p>
-              <p>Account Name: HarvestHub Agricultural Fund</p>
+              <p>Account Name: Saara Ketha Harvest Hub</p>
               <p>Account Number: Contact your collection centre officer for details</p>
               <p>Reference: Use your Auction Number as the transfer reference</p>
             </div>

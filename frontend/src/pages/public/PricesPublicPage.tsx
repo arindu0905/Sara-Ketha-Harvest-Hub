@@ -5,17 +5,28 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Search } from 'lucide-react';
 import { formatCategoryName } from '../../utils/categoryUtils';
 
+const GRADES = ['grade_a', 'grade_b', 'grade_c'];
+const kg = (n: number) => `${n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 1 : 0 })} kg`;
+
 export const PricesPublicPage: React.FC = () => {
   const [search, setSearch] = React.useState('');
+  const [inStockOnly, setInStockOnly] = React.useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['public-prices'],
-    queryFn: () => pricesApi.getCurrent(),
+    queryKey: ['public-prices', 'stock'],
+    queryFn: () => pricesApi.getCurrent({ include_stock: 'true' }),
   });
 
-  const prices = (data?.data?.data || []).filter((p: any) =>
-    !search || p.crop_categories?.name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const q = search.trim().toLowerCase();
+  const prices = ((data?.data?.data || []) as any[])
+    .filter((p) => !q || [p.crop_varieties?.name, p.crop_categories?.name, p.crop_categories?.name_sinhala, p.crop_categories?.name_tamil]
+      .some((s) => s?.toLowerCase().includes(q)))
+    .filter((p) => !inStockOnly || Number(p.available_kg) > 0)
+    // by category, then each product (category-wide prices last), then grade A, B, C
+    .sort((a, b) => (a.crop_categories?.name || '').localeCompare(b.crop_categories?.name || '')
+      || Number(!a.variety_id) - Number(!b.variety_id)
+      || (a.crop_varieties?.name || '').localeCompare(b.crop_varieties?.name || '')
+      || GRADES.indexOf(a.grade) - GRADES.indexOf(b.grade));
 
   return (
     <div className="min-h-screen bg-surface-50">
@@ -26,7 +37,7 @@ export const PricesPublicPage: React.FC = () => {
           </Link>
           <div className="flex items-center gap-2">
             <span className="text-xl">🌾</span>
-            <span className="font-bold text-surface-900 font-display">HarvestHub Prices</span>
+            <span className="font-bold text-surface-900 font-display">Harvest Hub Prices</span>
           </div>
           <Link to="/login" className="btn-primary btn-sm">Sign In</Link>
         </div>
@@ -36,17 +47,23 @@ export const PricesPublicPage: React.FC = () => {
         <div className="page-header">
           <div>
             <h1 className="page-title">Daily Crop Market Prices</h1>
-            <p className="page-subtitle">Official collection centre purchasing & selling prices in Sri Lankan Rupees (LKR)</p>
+            <p className="page-subtitle">Official collection centre purchasing & selling prices in Sri Lankan Rupees (LKR), with the stock available today</p>
           </div>
-          <div className="flex items-center gap-2 bg-white border border-surface-200 rounded-xl px-3 py-2 w-full sm:w-64">
-            <Search size={16} className="text-surface-400" />
-            <input
-              type="text"
-              placeholder="Search crop category..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full text-sm bg-transparent outline-none"
-            />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+            <label className="flex items-center gap-2 text-sm font-medium text-surface-700 whitespace-nowrap cursor-pointer">
+              <input type="checkbox" checked={inStockOnly} onChange={(e) => setInStockOnly(e.target.checked)} className="rounded border-surface-300" />
+              In stock only
+            </label>
+            <div className="flex items-center gap-2 bg-white border border-surface-200 rounded-xl px-3 py-2 w-full sm:w-64">
+              <Search size={16} className="text-surface-400" />
+              <input
+                type="text"
+                placeholder="Search product or category..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full text-sm bg-transparent outline-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -60,29 +77,40 @@ export const PricesPublicPage: React.FC = () => {
           <div className="card p-12 text-center text-surface-400">No active prices found matching your search.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {prices.map((p: any) => (
-              <div key={p.id} className="card p-5 hover:shadow-card-hover transition-shadow">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-bold text-surface-900 text-lg">{p.crop_categories?.name}</h3>
-                    <p className="text-xs text-emerald-700 font-medium">{formatCategoryName(p.crop_categories)}</p>
+            {prices.map((p: any) => {
+              const stock = Number(p.available_kg) || 0;
+              return (
+                <div key={p.id} className="card p-5 hover:shadow-card-hover transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-bold text-surface-900 text-lg">{p.crop_varieties?.name || p.crop_categories?.name}</h3>
+                      <p className="text-xs text-emerald-700 font-medium">
+                        {p.crop_varieties ? formatCategoryName(p.crop_categories) : 'Category price (any product)'}
+                      </p>
+                    </div>
+                    <span className={`badge uppercase ${p.grade === 'grade_a' ? 'badge-success' : p.grade === 'grade_b' ? 'badge-warning' : 'badge-neutral'}`}>
+                      {p.grade?.replace('_', ' ')}
+                    </span>
                   </div>
-                  <span className={`badge uppercase ${p.grade === 'grade_a' ? 'badge-success' : p.grade === 'grade_b' ? 'badge-warning' : 'badge-neutral'}`}>
-                    {p.grade?.replace('_', ' ')}
-                  </span>
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-surface-100 text-sm">
+                    <div>
+                      <p className="text-2xs font-semibold text-surface-400 uppercase">Purchase Price</p>
+                      <p className="font-bold text-primary-700 text-base">LKR {p.purchase_price} <span className="text-xs text-surface-500 font-normal">/ {p.unit || 'kg'}</span></p>
+                    </div>
+                    <div>
+                      <p className="text-2xs font-semibold text-surface-400 uppercase">Selling Price</p>
+                      <p className="font-bold text-earth-700 text-base">LKR {p.selling_price} <span className="text-xs text-surface-500 font-normal">/ {p.unit || 'kg'}</span></p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-surface-100 flex items-center justify-between text-sm">
+                    <p className="text-2xs font-semibold text-surface-400 uppercase">In stock (this grade)</p>
+                    {stock > 0
+                      ? <span className="font-bold text-emerald-700">{kg(stock)}</span>
+                      : <span className="text-surface-400 font-medium">Out of stock</span>}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-surface-100 text-sm">
-                  <div>
-                    <p className="text-2xs font-semibold text-surface-400 uppercase">Purchase Price</p>
-                    <p className="font-bold text-primary-700 text-base">LKR {p.purchase_price} <span className="text-xs text-surface-500 font-normal">/ {p.unit || 'kg'}</span></p>
-                  </div>
-                  <div>
-                    <p className="text-2xs font-semibold text-surface-400 uppercase">Selling Price</p>
-                    <p className="font-bold text-earth-700 text-base">LKR {p.selling_price} <span className="text-xs text-surface-500 font-normal">/ {p.unit || 'kg'}</span></p>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

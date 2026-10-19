@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { roleBasePath } from '../utils/roleBase';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import {
   LayoutDashboard, Users, Package, ShoppingCart, DollarSign,
   Truck, BarChart3, Settings, Bell, LogOut, Menu, Calendar,
@@ -165,7 +166,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ role }) => {
         <div className="absolute inset-0 bg-black/40" onClick={() => setMobileSidebarOpen(false)} />
       )}
       <div className={`relative flex flex-col h-full ${mobile ? 'w-64 bg-white' : 'w-full'} z-10`}>
-        {/* Logo with Sara Ketha Harvest Hub title */}
+        {/* Logo with Saara Ketha Harvest Hub title */}
         <div className="flex items-center gap-3 p-4 border-b border-surface-100 h-16" style={{ background: 'linear-gradient(135deg, rgba(5,150,105,0.08) 0%, rgba(13,148,136,0.08) 100%)' }}>
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #059669 0%, #0d9488 100%)' }}>
             <span className="text-lg">🌾</span>
@@ -299,7 +300,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ role }) => {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <Outlet />
+          <ErrorBoundary compact><Outlet /></ErrorBoundary>
         </main>
       </div>
     </div>

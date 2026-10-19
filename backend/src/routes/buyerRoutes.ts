@@ -56,7 +56,8 @@ router.get('/:id', async (req: any, res, next) => {
     await assertBuyerAccess(req, req.params.id);
     const { data, error } = await supabaseAdmin
       .from('buyers')
-      .select('*, profiles!profile_id(*), buyer_documents(*)')
+      // explicit profile columns: profiles also stores a password hash that must never reach the client
+      .select('*, profiles!profile_id(id, email, full_name, phone, avatar_url, role, account_status), buyer_documents(*)')
       .eq('id', req.params.id).single();
     if (error || !data) throw new AppError('Buyer not found', 404);
     sendSuccess(res, { data });

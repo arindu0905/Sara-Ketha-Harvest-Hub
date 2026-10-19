@@ -208,10 +208,10 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
 
     const greetingText =
       language === 'si'
-        ? 'ආයුබෝවන්! මම ඔබගේ Sara Ketha Harvest Hub Bot සහායකයා වේ. 🌾\nඔබගේ ගොවිපල පිහිටි දිස්ත්‍රික්කය හෝ ප්‍රදේශය කුමක්ද?'
+        ? 'ආයුබෝවන්! මම ඔබගේ Saara Ketha Harvest Hub Bot සහායකයා වේ. 🌾\nඔබගේ ගොවිපල පිහිටි දිස්ත්‍රික්කය හෝ ප්‍රදේශය කුමක්ද?'
         : language === 'ta'
-        ? 'வணக்கம்! நான் உங்கள் Sara Ketha Harvest Hub Bot ஆலோசனை உதவியாளராவேன். 🌾\nஉங்கள் பண்ணை எந்த மாவட்டத்தில் அமைந்துள்ளது?'
-        : 'Hello! I am Sara Ketha Harvest Hub Bot. 🌾\nWhich district or region is your farm located in?';
+        ? 'வணக்கம்! நான் உங்கள் Saara Ketha Harvest Hub Bot ஆலோசனை உதவியாளராவேன். 🌾\nஉங்கள் பண்ணை எந்த மாவட்டத்தில் அமைந்துள்ளது?'
+        : 'Hello! I am Saara Ketha Harvest Hub Bot. 🌾\nWhich district or region is your farm located in?';
 
     setMessages([
       {
@@ -385,7 +385,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
           </div>
           <div className="text-left">
             <p className="font-bold text-xs flex items-center gap-1 leading-tight">
-              Sara Ketha Bot <Sparkles size={12} className="text-amber-300" />
+              Saara Ketha Bot <Sparkles size={12} className="text-amber-300" />
             </p>
             <p className="text-[10px] text-emerald-200/80 font-medium">Smart Crop Advisor • Active</p>
           </div>
@@ -415,7 +415,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
           </div>
           <div>
             <h3 className="font-bold text-sm flex items-center gap-1.5 leading-tight tracking-tight">
-              Sara Ketha Bot <Sparkles size={14} className="text-amber-300" />
+              Saara Ketha Bot <Sparkles size={14} className="text-amber-300" />
             </h3>
             <span className="text-[10px] text-emerald-200/90 flex items-center gap-1 font-medium">
               <Activity size={10} className="text-emerald-300 animate-pulse" /> Your friendly farming buddy
@@ -528,7 +528,7 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
           >
             {msg.sender === 'bot' && (
               <span className="text-[10px] font-semibold text-emerald-700 mb-1 ml-1 flex items-center gap-1">
-                <span className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center text-[9px]">🌱</span> Sara Ketha
+                <span className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center text-[9px]">🌱</span> Saara Ketha
               </span>
             )}
             <div

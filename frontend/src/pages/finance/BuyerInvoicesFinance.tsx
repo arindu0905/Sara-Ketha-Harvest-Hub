@@ -161,7 +161,7 @@ export const BuyerInvoicesFinance: React.FC = () => {
       <body>
         <div class="receipt">
           <div class="header">
-            <h1>🌾 Sara Ketha Harvest Hub</h1>
+            <h1>🌾 Saara Ketha Harvest Hub</h1>
             <p>Agricultural Collection Centre • Official Payment Receipt</p>
           </div>
           <div style="text-align: right;">
@@ -198,7 +198,7 @@ export const BuyerInvoicesFinance: React.FC = () => {
             <div class="amount-val">LKR ${amountLkr}</div>
           </div>
           <div class="footer">
-            <p>Verified and processed via HarvestHub Payments Platform. Thank you for your business!</p>
+            <p>Verified and processed by Saara Ketha Harvest Hub. Thank you for your business!</p>
           </div>
         </div>
         <script>
@@ -506,7 +506,7 @@ export const BuyerInvoicesFinance: React.FC = () => {
             <div className="bg-gradient-to-b from-white to-emerald-50/30 border-2 border-emerald-200 rounded-2xl p-6 space-y-4 shadow-sm relative">
               <div className="flex justify-between items-start border-b border-emerald-100 pb-3">
                 <div>
-                  <h3 className="font-extrabold text-lg text-emerald-900 uppercase tracking-wide">Sara Ketha Harvest Hub</h3>
+                  <h3 className="font-extrabold text-lg text-emerald-900 uppercase tracking-wide">Saara Ketha Harvest Hub</h3>
                   <p className="text-2xs text-surface-500">Official Buyer Payment Receipt & Voucher</p>
                 </div>
                 <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-extrabold text-2xs uppercase border border-emerald-300">

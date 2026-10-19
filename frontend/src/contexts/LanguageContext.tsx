@@ -18,7 +18,7 @@ export const LANGUAGES: LanguageOption[] = [
 
 export const translations: Record<Language, Record<string, string>> = {
   en: {
-    system_name: 'Sara Ketha Harvest Hub',
+    system_name: 'Saara Ketha Harvest Hub',
 
     // Roles
     role_administrator: 'Administrator',
@@ -121,10 +121,10 @@ export const translations: Record<Language, Record<string, string>> = {
     view_reports: 'View Reports',
 
     // Page Subtitles
-    crop_categories_subtitle: 'Standardized crop classifications and varieties supported by Sara Ketha Harvest Hub',
+    crop_categories_subtitle: 'Standardized crop classifications and varieties supported by Saara Ketha Harvest Hub',
     price_management_subtitle: 'Current market purchase and selling prices for all crop grades',
     collection_centres_subtitle: 'Agricultural collection centres and hub locations across Sri Lanka',
-    user_management_subtitle: 'View, manage roles, and monitor user account statuses across Sara Ketha Harvest Hub',
+    user_management_subtitle: 'View, manage roles, and monitor user account statuses across Saara Ketha Harvest Hub',
 
     // Empty States
     no_categories_found: 'No crop categories found.',
@@ -143,11 +143,11 @@ export const translations: Record<Language, Record<string, string>> = {
     complaints: 'Complaints',
     welcome: 'Welcome',
     farmer_dashboard_subtitle: 'Your farm management and AI crop recommendation dashboard',
-    ask_sara_ketha_bot: 'Ask Sara Ketha Bot',
+    ask_sara_ketha_bot: 'Ask Saara Ketha Bot',
     sara_ketha_advisory_engine: 'Java ML / Weka Engine (Random Forest Classifier)',
     banner_ai_suggestions_title: 'Get AI-Powered Optimal Crop Cultivation Suggestions',
     banner_ai_suggestions_desc: 'Our AI model predicts the highest-yielding crop recommendations based on your district location, crop rotation history, and soil conditions in English, Sinhala & Tamil.',
-    launch_sara_ketha_bot: 'Launch Sara Ketha Bot',
+    launch_sara_ketha_bot: 'Launch Saara Ketha Bot',
     total_collections: 'Total Collections',
     paid_amount: 'Paid Amount',
     pending_payment: 'Pending Payment',

@@ -51,7 +51,7 @@ export const getMe = async (
     if (!farmer) {
       const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select('*')
+        .select('full_name, email, phone')
         .eq('id', userId)
         .maybeSingle();
 

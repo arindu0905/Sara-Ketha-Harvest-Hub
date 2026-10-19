@@ -68,7 +68,7 @@ export const LoginPage: React.FC = () => {
   return (
     <AuthShell>
           <h1 className="text-2xl font-bold text-surface-900 font-display mb-1">Welcome back</h1>
-          <p className="text-surface-500 text-sm mb-6">Sign in to your HarvestHub account</p>
+          <p className="text-surface-500 text-sm mb-6">Sign in to your Harvest Hub account</p>
 
           {error && (
             <div className="alert-error mb-4">

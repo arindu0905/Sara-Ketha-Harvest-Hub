@@ -33,9 +33,9 @@ export function printDocument(doc: PrintDoc): void {
     footer{margin-top:28px;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px}
     @media print{body{margin:12mm}}
   </style></head><body>
-  <header><h1>Sara Ketha Harvest Hub</h1><h2>${esc(doc.title)} · ${esc(doc.number)}</h2>${doc.subtitle ? `<div class="sub">${esc(doc.subtitle)}</div>` : ''}</header>
+  <header><h1>Saara Ketha Harvest Hub</h1><h2>${esc(doc.title)} · ${esc(doc.number)}</h2>${doc.subtitle ? `<div class="sub">${esc(doc.subtitle)}</div>` : ''}</header>
   ${sections}${table}
-  <footer>${esc(doc.footer ?? 'This is a computer-generated document issued by Sara Ketha Harvest Hub.')}</footer>
+  <footer>${esc(doc.footer ?? 'This is a computer-generated document issued by Saara Ketha Harvest Hub.')}</footer>
   <script>window.onload=function(){setTimeout(function(){window.print()},200)}</script></body></html>`);
   w.document.close();
 }
@@ -58,7 +58,7 @@ export function printReport(title: string, subtitle: string, sections: ReportSec
     table{width:100%;border-collapse:collapse} th{background:#059669;color:#fff;padding:5px 7px;text-align:left;font-size:10px}
     td{padding:4px 7px;border-bottom:1px solid #e2e8f0;font-size:10px} tr:nth-child(even) td{background:#f0fdf4}
     @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-  </style></head><body><div class="head"><h1>Sara Ketha Harvest Hub</h1><p>${esc(title)} · ${esc(subtitle)}</p></div>
+  </style></head><body><div class="head"><h1>Saara Ketha Harvest Hub</h1><p>${esc(title)} · ${esc(subtitle)}</p></div>
   <div class="meta">Generated ${esc(new Date().toLocaleString('en-LK'))}</div>${body}
   <script>window.onload=function(){setTimeout(function(){window.print()},200)}</script></body></html>`);
   w.document.close();

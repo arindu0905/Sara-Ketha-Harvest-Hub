@@ -64,7 +64,7 @@ export const RegisterPage: React.FC = () => {
   return (
     <AuthShell wide>
           <h1 className="text-2xl font-bold text-surface-900 font-display mb-1">Create Account</h1>
-          <p className="text-surface-500 text-sm mb-6">Join HarvestHub today</p>
+          <p className="text-surface-500 text-sm mb-6">Join Saara Ketha Harvest Hub today</p>
 
           {error && (
             <div className="alert-error mb-4">

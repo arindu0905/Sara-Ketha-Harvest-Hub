@@ -190,7 +190,7 @@ export const FarmerDashboard: React.FC = () => {
 
           <div className="flex flex-col text-left pr-1.5">
             <span className="text-xs font-black tracking-tight text-white leading-tight flex items-center gap-1">
-              Ask Sara Ketha Bot
+              Ask Saara Ketha Bot
               <Sparkles size={12} className="text-amber-300 inline-block" />
             </span>
             <span className="text-[10px] font-semibold text-emerald-100/90">Smart Crop Advisor</span>

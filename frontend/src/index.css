@@ -465,7 +465,7 @@
   .animate-dot-3 { animation: dotPulse 1.2s infinite 0.4s; }
 }
 
-/* ── Sara Ketha Bot: playful visuals ─────────────────────────────── */
+/* ── Saara Ketha Bot: playful visuals ─────────────────────────────── */
 @keyframes botWave { 0%, 60%, 100% { transform: rotate(0deg); } 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-8deg); } 50% { transform: rotate(10deg); } }
 @keyframes botFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @keyframes botGrow { 0% { transform: scale(0.6) translateY(6px); opacity: 0.4; } 50% { transform: scale(1.15) translateY(-3px); opacity: 1; } 100% { transform: scale(0.6) translateY(6px); opacity: 0.4; } }

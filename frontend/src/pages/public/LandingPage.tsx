@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Sprout, UserPlus, Scale, ClipboardCheck, Banknote, Tractor, ShoppingBasket, Bot, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Sprout, UserPlus, Scale, ClipboardCheck, Banknote, Tractor, ShoppingBasket, CheckCircle2 } from 'lucide-react';
 import { pricesApi } from '../../services/api';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { formatCategoryForLanguage } from '../../utils/categoryUtils';
 import { COPY, CROPS, GREETINGS } from './landingCopy';
+import { AdvisorBotDemo } from './AdvisorBotDemo';
 
-/* Photography: Unsplash (free licence). Everything degrades to plain colour if the CDN is unreachable. */
-const photo = (id: string, w: number) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=70`;
-const IMG = { hero: '1574943320219-553eb213f72d', spices: '1596040033229-a9821ebd058d', rows: '1625246333195-78d9c38ad449' };
+/* Photography: Unsplash (free licence), served from /public/landing so the page works on a slow or offline network.
+   Originals: photo-1574943320219-553eb213f72d (hero), photo-1596040033229-a9821ebd058d (spices), photo-1625246333195-78d9c38ad449 (rows). */
+const IMG = { hero: '/landing/hero.jpg', spices: '/landing/spices.jpg', rows: '/landing/rows.jpg' };
 
 const GOLD = '#F5B335';
 const MAROON = '#8D2048';
@@ -97,10 +98,27 @@ export const LandingPage: React.FC = () => {
     return () => clearInterval(id);
   }, []);
 
-  const { data, isLoading } = useQuery({ queryKey: ['landing-prices'], queryFn: () => pricesApi.getCurrent(), staleTime: 5 * 60 * 1000, retry: 1 });
-  const prices: any[] = (data?.data?.data || []).slice(0, 6);
-  const first = prices[0];
+  const { data, isLoading } = useQuery({
+    queryKey: ['landing-prices', 'stock'],
+    queryFn: () => pricesApi.getCurrent({ include_stock: 'true' }),
+    staleTime: 5 * 60 * 1000, retry: 1,
+  });
+  const allPrices: any[] = data?.data?.data || [];
   const cropName = (p: any) => formatCategoryForLanguage(p.crop_categories, language) || p.crop_categories?.name;
+  const productName = (p: any) => p.crop_varieties?.name || cropName(p);
+  // product rows show stock across all grades; a category-wide price row shows that grade's general stock
+  const stockOf = (p: any): number => Number(p.variety_id ? p.product_available_kg : p.available_kg) || 0;
+  const kg = (n: number) => `${n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 1 : 0 })} kg`;
+  const gradeStock = (p: any) => allPrices
+    .filter((r) => r.category_id === p.category_id && r.variety_id === p.variety_id && !r.centre_id && Number(r.available_kg) > 0)
+    .map((r) => `${String(r.grade).replace('grade_', '').toUpperCase()}: ${kg(Number(r.available_kg))}`).join(' · ');
+  // One row per real product at its Grade A price, products in stock first.
+  const productRows = Array.from(new Map(allPrices
+    .filter((p) => p.variety_id && p.grade === 'grade_a' && !p.centre_id)
+    .map((p) => [p.variety_id, p] as [string, any])).values())
+    .sort((a, b) => stockOf(b) - stockOf(a) || productName(a).localeCompare(productName(b)));
+  const prices: any[] = (productRows.length ? productRows : allPrices).slice(0, 6);
+  const first = prices[0];
 
   const STEP_ICONS = [UserPlus, Scale, ClipboardCheck, Banknote];
 
@@ -135,7 +153,7 @@ export const LandingPage: React.FC = () => {
 
       {/* Hero */}
       <section className="relative isolate overflow-hidden bg-emerald-950 text-white">
-        <img src={photo(IMG.hero, 1800)} alt="" aria-hidden className="absolute inset-0 -z-10 h-full w-full object-cover" data-lh-anim style={{ animation: 'lhKen 24s ease-in-out infinite alternate' }} />
+        <img src={IMG.hero} alt="" aria-hidden className="absolute inset-0 -z-10 h-full w-full object-cover" data-lh-anim style={{ animation: 'lhKen 24s ease-in-out infinite alternate' }} />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-emerald-950/95 via-emerald-950/70 to-emerald-950/10" />
         <div className="absolute -top-16 -right-16 h-72 w-72 rounded-full -z-10 blur-2xl" data-lh-anim style={{ background: 'radial-gradient(circle,#F5B335 0%,transparent 70%)', animation: 'lhSun 7s ease-in-out infinite' }} />
 
@@ -159,8 +177,9 @@ export const LandingPage: React.FC = () => {
             <div className="absolute right-4 bottom-28 sm:bottom-36 hidden md:block lh-rise" style={{ animationDelay: '.8s' }}>
               <div className="rounded-2xl bg-white/95 text-emerald-950 shadow-2xl px-5 py-4 w-60" data-lh-anim style={{ animation: 'lhBob 5s ease-in-out infinite' }}>
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">{c.todayCard}</div>
-                <div className="mt-1 font-bold truncate">{cropName(first)}</div>
+                <div className="mt-1 font-bold truncate">{productName(first)}</div>
                 <div className="text-2xl font-extrabold font-display text-emerald-800">Rs. {Number(first.purchase_price).toFixed(2)}<span className="text-xs font-medium text-emerald-700"> / kg</span></div>
+                {stockOf(first) > 0 && <div className="mt-1 text-xs font-semibold text-emerald-700">{c.colStock}: {kg(stockOf(first))}</div>}
               </div>
             </div>
           )}
@@ -220,16 +239,25 @@ export const LandingPage: React.FC = () => {
               ) : (
                 <table className="w-full text-sm">
                   <thead className="text-xs uppercase text-emerald-700/80"><tr>
-                    <th className="text-left font-semibold px-5 py-2.5">{c.colCrop}</th>
+                    <th className="text-left font-semibold px-3 sm:px-5 py-2.5">{c.colCrop}</th>
                     <th className="text-right font-semibold py-2.5">{c.colPay}</th>
-                    <th className="text-right font-semibold px-5 py-2.5">{c.colBuy}</th>
+                    <th className="text-right font-semibold px-3 sm:px-5 py-2.5">{c.colBuy}</th>
+                    <th className="text-right font-semibold pr-3 sm:pr-5 py-2.5">{c.colStock}</th>
                   </tr></thead>
                   <tbody className="divide-y divide-amber-100">
                     {prices.map((p: any) => (
                       <tr key={p.id} className="hover:bg-amber-50 transition-colors">
-                        <td className="px-5 py-3 font-semibold">{cropName(p)} <span className="ml-1 text-xs font-medium text-emerald-700/70 uppercase">{p.grade?.replace('grade_', '')}</span></td>
+                        <td className="px-3 sm:px-5 py-3">
+                          <div className="font-semibold leading-tight">{productName(p)} <span className="ml-1 text-xs font-medium text-emerald-700/70 uppercase">{p.grade?.replace('grade_', '')}</span></div>
+                          {p.variety_id && <div className="text-xs text-emerald-700/70">{cropName(p)}</div>}
+                        </td>
                         <td className="py-3 text-right font-bold text-emerald-800">{Number(p.purchase_price).toFixed(2)}</td>
-                        <td className="px-5 py-3 text-right text-emerald-900/80">{Number(p.selling_price).toFixed(2)}</td>
+                        <td className="px-3 sm:px-5 py-3 text-right text-emerald-900/80">{Number(p.selling_price).toFixed(2)}</td>
+                        <td className="pr-3 sm:pr-5 py-3 text-right">
+                          {stockOf(p) > 0
+                            ? <span title={gradeStock(p) || undefined} className="inline-flex rounded-full bg-emerald-50 text-emerald-800 px-2 py-0.5 text-xs font-semibold whitespace-nowrap">{kg(stockOf(p))}</span>
+                            : <span className="text-xs font-medium text-emerald-900/40 whitespace-nowrap">{c.outOfStock}</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -263,13 +291,7 @@ export const LandingPage: React.FC = () => {
       <section id="advisor" className="py-16 sm:py-24">
         <div className="max-w-6xl mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center">
           <Reveal>
-            <div className="relative rounded-3xl overflow-hidden aspect-[4/3] shadow-xl bg-emerald-900">
-              <img src={photo(IMG.spices, 900)} alt="" aria-hidden className="h-full w-full object-cover" loading="lazy" />
-              <div className="absolute inset-x-5 bottom-5 space-y-2.5 text-sm">
-                <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-emerald-800 text-white px-4 py-2.5 shadow-lg">{c.advisorChat.q}</div>
-                <div className="max-w-[88%] rounded-2xl rounded-bl-sm bg-white text-emerald-950 px-4 py-2.5 shadow-lg flex gap-2"><Bot size={18} className="shrink-0 mt-0.5 text-emerald-700" />{c.advisorChat.a}</div>
-              </div>
-            </div>
+            <AdvisorBotDemo examples={c.advisorDemo} label={c.advisorExample} photo={IMG.spices} />
           </Reveal>
           <Reveal delay={0.15}>
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl leading-tight">{c.advisorTitle}</h2>
@@ -283,7 +305,7 @@ export const LandingPage: React.FC = () => {
 
       {/* CTA */}
       <section className="relative overflow-hidden bg-emerald-950 text-white">
-        <img src={photo(IMG.rows, 1600)} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-30" loading="lazy" />
+        <img src={IMG.rows} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-30" loading="lazy" />
         <Lotus size={220} color={GOLD} spin className="absolute -right-16 -top-16 opacity-25" />
         <Lotus size={160} color="#fff" spin className="absolute -left-10 -bottom-10 opacity-10" />
         <Reveal className="relative max-w-3xl mx-auto px-4 py-20 text-center">

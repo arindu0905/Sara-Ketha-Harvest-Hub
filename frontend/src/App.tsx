@@ -8,6 +8,7 @@ import { ProtectedRoute, PublicOnlyRoute } from './routes/ProtectedRoute';
 
 // Layouts
 import { DashboardLayout } from './layouts/DashboardLayout';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
 // Public Pages
 import { LandingPage } from './pages/public/LandingPage';
@@ -131,6 +132,7 @@ function App() {
       <LanguageProvider>
         <AuthProvider>
         <BrowserRouter>
+          <ErrorBoundary>
           <Routes>
             {/* ─── Public Routes ───────────────────────────────── */}
             <Route path="/" element={<LandingPage />} />
@@ -364,6 +366,7 @@ function App() {
             {/* ─── Catch All ───────────────────────────────────── */}
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
+          </ErrorBoundary>
         </BrowserRouter>
 
         <Toaster

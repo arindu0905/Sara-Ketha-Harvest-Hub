@@ -3,6 +3,8 @@ import { supabaseAdmin } from '../config/supabase';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/AppError';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { attachStock, SELLABLE_BATCH_STATUSES } from '../services/stock';
+import { todayInSriLanka } from '../utils/dates';
 
 /**
  * GET /api/prices/current
@@ -10,7 +12,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
  */
 export const getCurrentPrices = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { category_id, grade, centre_id } = req.query as Record<string, string>;
+    const { category_id, grade, centre_id, include_stock } = req.query as Record<string, string>;
 
     let query = supabaseAdmin
       .from('crop_prices')
@@ -28,6 +30,21 @@ export const getCurrentPrices = async (req: Request, res: Response, next: NextFu
 
     const { data, error } = await query.order('category_id').order('grade');
     if (error) throw new AppError(error.message, 500);
+
+    // ?include_stock=true adds sellable kilograms per row (that grade) and per product (all grades).
+    // Only totals are returned, never batch, farmer or cost details, so it is safe on the public price list.
+    if (include_stock === 'true' || include_stock === '1') {
+      let batchQuery = supabaseAdmin
+        .from('inventory_batches')
+        .select('category_id, variety_id, grade, available_qty_kg, expected_expiry_date')
+        .gt('available_qty_kg', 0)
+        .in('status', [...SELLABLE_BATCH_STATUSES]);
+      if (category_id) batchQuery = batchQuery.eq('category_id', category_id);
+      const { data: batches, error: bErr } = await batchQuery;
+      if (bErr) throw new AppError(bErr.message, 500);
+      sendSuccess(res, { data: attachStock(data || [], batches || [], todayInSriLanka()) });
+      return;
+    }
     sendSuccess(res, { data: data || [] });
   } catch (e) { next(e); }
 };
