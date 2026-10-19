@@ -11,7 +11,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
-    "seed:images": "ts-node --transpile-only src/scripts/seedProductImages.ts"
+    "seed:images": "ts-node --transpile-only src/scripts/seedProductImages.ts",
+    "seed:catalog": "ts-node --transpile-only src/scripts/seedSriLankaCatalog.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
