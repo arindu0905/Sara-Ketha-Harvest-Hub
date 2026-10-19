@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, X, Send, Sparkles, Sprout, MapPin, History, RefreshCw, Search, Minimize2, Maximize2, ChevronDown, ArrowRight, Activity, Filter, CheckCircle2, Droplets } from 'lucide-react';
+import { X, Send, Sparkles, Sprout, MapPin, History, RefreshCw, Search, Minimize2, Maximize2, ChevronDown, ArrowRight, Activity, Filter, CheckCircle2, Droplets } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import apiClient from '../../services/apiClient';
+import { BotMascot, BotMood } from './BotMascot';
 
 interface Message {
   id: string;
@@ -177,6 +178,16 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
   // Window Actions state (Minimize & Expand)
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // The mascot thinks while the advisor works and celebrates for a few seconds when results arrive
+  const [celebrate, setCelebrate] = useState(false);
+  useEffect(() => {
+    if (step !== 'done') return;
+    setCelebrate(true);
+    const id = setTimeout(() => setCelebrate(false), 3500);
+    return () => clearTimeout(id);
+  }, [step]);
+  const botMood: BotMood = step === 'loading' || isSubmitting ? 'thinking' : celebrate ? 'happy' : 'idle';
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -378,10 +389,8 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
           onClick={() => setIsMinimized(false)}
           className="group flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-800 via-primary-800 to-emerald-900 text-white rounded-2xl shadow-2xl border border-emerald-500/40 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
         >
-          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-white/15 backdrop-blur-md">
-            <Bot size={18} className="text-emerald-300 animate-pulse" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950 animate-ping" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-950" />
+          <div className="w-8 shrink-0 -my-1">
+            <BotMascot mood={botMood} shadow={false} />
           </div>
           <div className="text-left">
             <p className="font-bold text-xs flex items-center gap-1 leading-tight">
@@ -409,9 +418,8 @@ export const FarmerCropBotModal: React.FC<{ isOpen: boolean; onClose: () => void
         <span className="absolute right-40 bottom-0 text-sm opacity-20 bot-float pointer-events-none" style={{ animationDelay: '0.8s' }}>🌾</span>
 
         <div className="flex items-center gap-2.5 relative z-10">
-          <div className="relative w-9 h-9 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner">
-            <span className="text-xl bot-wave">🌱</span>
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-emerald-900" />
+          <div className="relative w-9 shrink-0 -my-1">
+            <BotMascot mood={botMood} shadow={false} />
           </div>
           <div>
             <h3 className="font-bold text-sm flex items-center gap-1.5 leading-tight tracking-tight">

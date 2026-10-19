@@ -1,45 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
+import { BotMascot, BotMood } from '../../components/bot/BotMascot';
 
 /** One scripted conversation. The picks are real crop-advisor results (see landingCopy.ts). */
 export interface DemoExample { q: string; why: string; picks: { e: string; name: string; score: number }[] }
-
-type Mood = 'idle' | 'listening' | 'thinking' | 'happy';
 
 /* Timeline of one example, in ms */
 const T_QUESTION = 500, T_TYPING = 1500, T_ANSWER = 3000, MS_PER_CHAR = 28, HOLD = 4800, FADE = 450, TICK = 50;
 const easeOut = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 
 const STYLES = `
-@keyframes lhbBob    { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
-@keyframes lhbShadow { 0%,100% { transform: scaleX(1); opacity: .28 } 50% { transform: scaleX(.78); opacity: .14 } }
-@keyframes lhbBlink  { 0%, 90%, 100% { transform: scaleY(1) } 94% { transform: scaleY(.1) } }
-@keyframes lhbSway   { 0%,100% { transform: rotate(-9deg) } 50% { transform: rotate(9deg) } }
-@keyframes lhbWave   { 0%,100% { transform: rotate(0) } 25% { transform: rotate(-24deg) } 75% { transform: rotate(14deg) } }
-@keyframes lhbTalk   { 0%,100% { transform: scaleY(1) } 50% { transform: scaleY(.35) } }
-@keyframes lhbGlow   { 0%,100% { opacity: .15; transform: scale(.8) } 50% { opacity: .9; transform: scale(1.3) } }
-@keyframes lhbHop    { 0% { transform: translateY(0) } 30% { transform: translateY(-16px) } 55% { transform: translateY(0) } 70% { transform: translateY(-5px) } 100% { transform: translateY(0) } }
-@keyframes lhbTilt   { 0%,100% { transform: rotate(0) } 50% { transform: rotate(-7deg) } }
-@keyframes lhbSpark  { 0%,100% { opacity: 0; transform: scale(.3) rotate(0) } 50% { opacity: 1; transform: scale(1) rotate(45deg) } }
 @keyframes lhbDot    { 0%, 80%, 100% { transform: translateY(0); opacity: .45 } 40% { transform: translateY(-5px); opacity: 1 } }
 @keyframes lhbPop    { 0% { opacity: 0; transform: translateY(8px) scale(.92) } 100% { opacity: 1; transform: none } }
 @keyframes lhbCaret  { 50% { opacity: 0 } }
-.lhb-bob    { animation: lhbBob 3s ease-in-out infinite; }
-.lhb-shadow { transform-box: view-box; transform-origin: 60px 143px; animation: lhbShadow 3s ease-in-out infinite; }
-.lhb-blink  { transform-box: view-box; transform-origin: 60px 66px; animation: lhbBlink 4.2s infinite; }
-.lhb-sway   { transform-box: view-box; transform-origin: 60px 34px; animation: lhbSway 2.8s ease-in-out infinite; }
-.lhb-wave   { transform-box: view-box; transform-origin: 84px 106px; animation: lhbWave 1.1s ease-in-out infinite; }
-.lhb-talk   { transform-box: view-box; transform-origin: 60px 80px; animation: lhbTalk .26s ease-in-out infinite; }
-.lhb-glow   { transform-box: view-box; transform-origin: 60px 11px; animation: lhbGlow 1s ease-in-out infinite; }
-.lhb-hop    { animation: lhbHop .9s cubic-bezier(.3,.7,.3,1) 1; }
-.lhb-tilt   { transform-box: view-box; transform-origin: 60px 104px; animation: lhbTilt 1.6s ease-in-out infinite; }
-.lhb-spark  { transform-box: fill-box; transform-origin: center; animation: lhbSpark 1.4s ease-in-out infinite; }
 .lhb-dot    { animation: lhbDot 1s ease-in-out infinite; }
 .lhb-pop    { animation: lhbPop .45s cubic-bezier(.2,.8,.2,1) both; }
 .lhb-caret  { animation: lhbCaret .8s step-end infinite; }
-@media (prefers-reduced-motion: reduce) {
-  .lhb-bob, .lhb-shadow, .lhb-blink, .lhb-sway, .lhb-wave, .lhb-talk, .lhb-glow, .lhb-hop, .lhb-tilt, .lhb-spark, .lhb-dot, .lhb-pop, .lhb-caret { animation: none !important; }
-}
+@media (prefers-reduced-motion: reduce) { .lhb-dot, .lhb-pop, .lhb-caret { animation: none !important; } }
 `;
 
 const usePrefersReducedMotion = () => {
@@ -53,79 +30,6 @@ const usePrefersReducedMotion = () => {
     return () => mq.removeEventListener?.('change', on);
   }, []);
   return reduced;
-};
-
-const STAR = 'M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6Z';
-
-/** The Saara Ketha Bot: a small robot with a sprout antenna. */
-const Mascot: React.FC<{ mood: Mood; talking: boolean }> = ({ mood, talking }) => {
-  const ink = '#065F46', screen = '#064E3B', glow = '#6EE7B7', gold = '#F5B335';
-  const happy = mood === 'happy';
-  return (
-    <svg viewBox="0 0 120 150" className="w-full h-auto overflow-visible drop-shadow-xl">
-      <ellipse className="lhb-shadow" cx="60" cy="143" rx="30" ry="5" fill="#000" />
-      <g className="lhb-bob">
-        <g key={mood} className={happy ? 'lhb-hop' : mood === 'listening' ? 'lhb-tilt' : undefined}>
-          {/* sprout antenna */}
-          {mood === 'thinking' && <circle className="lhb-glow" cx="60" cy="11" r="11" fill="#FDE68A" />}
-          <g className="lhb-sway">
-            <path d="M60 34 V16" stroke={ink} strokeWidth="3" strokeLinecap="round" />
-            <path d="M60 22 C50 21 45 13 47 5 C56 7 61 13 60 22Z" fill="#34D399" stroke={ink} strokeWidth="1.5" />
-            <path d="M60 17 C67 11 74 11 79 15 C73 22 66 23 60 17Z" fill="#10B981" stroke={ink} strokeWidth="1.5" />
-          </g>
-          {/* ears */}
-          <rect x="7" y="56" width="11" height="22" rx="5.5" fill={gold} stroke={ink} strokeWidth="2" />
-          <rect x="102" y="56" width="11" height="22" rx="5.5" fill={gold} stroke={ink} strokeWidth="2" />
-          {/* head and face screen */}
-          <rect x="16" y="34" width="88" height="66" rx="28" fill="#FFFFFF" stroke={ink} strokeWidth="3" />
-          <rect x="27" y="45" width="66" height="44" rx="18" fill={screen} />
-          <g className="lhb-blink">
-            {happy ? (
-              <>
-                <path d="M40 68 q7 -9 14 0" stroke={glow} strokeWidth="4" strokeLinecap="round" fill="none" />
-                <path d="M66 68 q7 -9 14 0" stroke={glow} strokeWidth="4" strokeLinecap="round" fill="none" />
-              </>
-            ) : (
-              <>
-                <ellipse cx={mood === 'thinking' ? 50 : 47} cy={mood === 'thinking' ? 62 : 66} rx="5.5" ry="7" fill={glow} />
-                <ellipse cx={mood === 'thinking' ? 76 : 73} cy={mood === 'thinking' ? 62 : 66} rx="5.5" ry="7" fill={glow} />
-                <circle cx={mood === 'thinking' ? 52 : 49} cy={mood === 'thinking' ? 59 : 63} r="1.8" fill="#fff" />
-                <circle cx={mood === 'thinking' ? 78 : 75} cy={mood === 'thinking' ? 59 : 63} r="1.8" fill="#fff" />
-              </>
-            )}
-          </g>
-          {talking
-            ? <ellipse className="lhb-talk" cx="60" cy="80" rx="5" ry="3.2" fill={glow} />
-            : mood === 'thinking'
-              ? <path d="M55 81 h10" stroke={glow} strokeWidth="3" strokeLinecap="round" />
-              : <path d="M53 78 q7 6 14 0" stroke={glow} strokeWidth="3" strokeLinecap="round" fill="none" />}
-          <circle cx="34" cy="80" r="3.5" fill={gold} opacity=".85" />
-          <circle cx="86" cy="80" r="3.5" fill={gold} opacity=".85" />
-          {/* body with leaf badge */}
-          <rect x="36" y="100" width="48" height="34" rx="14" fill={gold} stroke={ink} strokeWidth="2.5" />
-          <path d="M60 126 C52 122 52 111 60 106 C68 111 68 122 60 126Z" fill={ink} />
-          <path d="M60 124 V110" stroke={gold} strokeWidth="1.5" />
-          {/* arms: the right one waves when the bot answers */}
-          <path d="M37 108 q-14 4 -16 16" stroke={ink} strokeWidth="6" strokeLinecap="round" fill="none" />
-          <circle cx="21" cy="125" r="5.5" fill="#fff" stroke={ink} strokeWidth="2" />
-          {happy ? (
-            <g className="lhb-wave">
-              <path d="M83 108 q14 -4 18 -18" stroke={ink} strokeWidth="6" strokeLinecap="round" fill="none" />
-              <circle cx="101" cy="89" r="5.5" fill="#fff" stroke={ink} strokeWidth="2" />
-            </g>
-          ) : (
-            <>
-              <path d="M83 108 q14 4 16 16" stroke={ink} strokeWidth="6" strokeLinecap="round" fill="none" />
-              <circle cx="99" cy="125" r="5.5" fill="#fff" stroke={ink} strokeWidth="2" />
-            </>
-          )}
-          {happy && [[12, 32, 0], [108, 26, 0.45], [112, 74, 0.9]].map(([x, y, d]) => (
-            <path key={`${x}-${y}`} className="lhb-spark" d={STAR} transform={`translate(${x} ${y})`} fill="#FCD34D" style={{ animationDelay: `${d}s` }} />
-          ))}
-        </g>
-      </g>
-    </svg>
-  );
 };
 
 const ScoreRing: React.FC<{ value: number; emoji: string }> = ({ value, emoji }) => {
@@ -182,7 +86,7 @@ export const AdvisorBotDemo: React.FC<{ examples: DemoExample[]; label: string; 
   const typed = Math.min(ex.why.length, Math.max(0, Math.floor((now - T_ANSWER) / MS_PER_CHAR)));
   const ring = easeOut((now - T_ANSWER - 200) / 1200);
   const talking = showA && typed < ex.why.length;
-  const mood: Mood = showA ? 'happy' : typing ? 'thinking' : showQ ? 'listening' : 'idle';
+  const mood: BotMood = showA ? 'happy' : typing ? 'thinking' : showQ ? 'listening' : 'idle';
   const [top, ...rest] = ex.picks;
 
   return (
@@ -203,7 +107,7 @@ export const AdvisorBotDemo: React.FC<{ examples: DemoExample[]; label: string; 
       </div>
 
       <div aria-hidden className="absolute inset-x-3 sm:inset-x-5 bottom-3 sm:bottom-5 flex items-end gap-2 sm:gap-3">
-        <div className="w-[76px] sm:w-[108px] shrink-0"><Mascot mood={mood} talking={talking} /></div>
+        <div className="w-[76px] sm:w-[108px] shrink-0"><BotMascot mood={mood} talking={talking} className="drop-shadow-xl" /></div>
         <div className={`flex-1 min-w-0 space-y-2 pb-1 transition-opacity duration-500 ${now > end - FADE ? 'opacity-0' : 'opacity-100'}`}>
           {showQ && (
             <div key={`q${idx}`} className="lhb-pop ml-auto w-fit max-w-[95%] rounded-2xl rounded-br-sm bg-emerald-700 text-white px-3.5 py-2 text-xs sm:text-sm shadow-lg">
